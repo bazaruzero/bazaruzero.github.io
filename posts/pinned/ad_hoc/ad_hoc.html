@@ -34,13 +34,671 @@
             <nav class="table-of-contents">
                 <h2>Table of Contents</h2>
                 <ul>
-                    <li><a href="#part1">Todo</a></li>
+                    <li>
+                        <a href="#linux">Linux</a>
+                        <ul>
+                            <li><a href="#bash-prompt">Bash prompt</a></li>
+                            <li><a href="#monitor-script-example">Monitor script example</a></li>
+                            <li><a href="#kill-group-of-processes">Kill group of process</a></li>
+                            <li><a href="#crontab-example">Crontab example</a></li>
+                            <li><a href="#mailx">Mailx</a></li>
+                            <li><a href="#rename-group-of-files">Rename group of files</a></li>
+                            <li><a href="#find-and-sort-files">Find and sort files</a></li>
+                            <li><a href="#tar-files">Tar files</a></li>
+                            <li><a href="#file-permissions">File permissions</a></li>
+                            <li><a href="#replace-in-file">Replace entries in a file</a></li>
+                            <li><a href="#check-locked-files">Check locked files after removal</a></li>
+                            <li><a href="#grep-log-files">Grep log file</a></li>
+                            <li><a href="#quick-removal-perl">Bunch of files quick removal using Perl</a></li>
+                            <li><a href="#swap-usage">SWAP usage by process</a></li>
+                            <li><a href="#file-recovery">Text file recover after cat /dev/null > file.txt</a></li>
+                            <li><a href="#ssh-keys">Generate SSH keys / passwordless ssh</a></li>
+                            <li><a href="#listen-ports-netstat">Listen ports</a></li>
+                            <li><a href="#network-speed">Check network Interface speed</a></li>
+                            <li><a href="#network-test">Network Interface speed test using Iperf</a></li>
+                            <li><a href="#ip-addr-list">Get list of all IPs</a></li>
+                            <li><a href="#scsi-bus">Scan / Rescan SCSI Bus</a></li>
+                            <li><a href="#pwd-expire">Avoid password expire</a></li>
+                            <li><a href="#sar">Sar</a></li>
+                            <li><a href="#git">Git</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="#postgresql">PostgreSQL</a>
+                        <ul>
+                            <li><a href="#pg-backup">Restore / Recover / Backup / PITR / Dump</a></li>
+                            <li><a href="#flyway">Flyway example</a></li>
+                            <li><a href="#liquibase">Liquibase example</a></li>
+                            <li><a href="#pgbench">PgBench</a></li>
+                            <li><a href="#pg-waldump">pg_waldump</a></li>
+                            <li><a href="#ash-viewer">ASH Viewer</a></li>
+                            <li><a href="#jdbc-conn-string">JDBC Connection string examples</a></li>
+                        </ul>
+                    </li>
                 </ul>
             </nav>
 
-            <section id="part1" class="post-section">
-                <h2>ToDo</h2>
-                <p>ToDo</p>
+            <section id="linux" class="post-section">
+                <h2>Linux</h2>
+                
+                <h3 id="bash-prompt">Bash prompt</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>export PS1='\[\033[0;32m\]$ORACLE_SID> \[\033[0;33m\]\u@\h\[\033[00m\] [\t] \w]\$ '</code></pre>
+                </div>
+
+                <h3 id="monitor-script-example">Monitor script example</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>while true; do df -hT . && sleep 5; done;</code></pre>
+                </div>
+
+                <h3 id="kill-group-of-processes">Kill group of process</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>ps -fu $LOGNAME | grep java | awk '{print $2}' | xargs kill -9</code></pre>
+                </div>
+
+                <h3 id="crontab-example">Crontab example</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>5 0 * * * /home/oracle/dba/scripts/audit_cleanup.sh > /home/oracle/dba/logs/audit_cleanup.log 2>&1 &</code></pre>
+                </div>
+
+                <h3 id="mailx">Mailx</h3>
+                <p><a href="https://www.computerhope.com/unix/umailx.htm">Utility keys description</a></p>
+                <p><a href="https://www.binarytides.com/linux-mailx-command/">Command examples</a></p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>echo "" | mailx -S smtp=your.smtp.server.com -s "Test" -r "from-me@gmail.com" receiver@gmail.ru;</code></pre>
+                </div>
+
+                <h3 id="rename-group-of-files">Rename group of files</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>$ touch 1_1 1_2 1_3
+$ ls -ltr
+total 0
+-rw-r--r-- 1 oracle oinstall 0 Nov 26 13:05 1_3
+-rw-r--r-- 1 oracle oinstall 0 Nov 26 13:05 1_2
+-rw-r--r-- 1 oracle oinstall 0 Nov 26 13:05 1_1
+ 
+$ for i in 1_*; do mv "$i" arch_"${i/1_/}"; done
+ 
+$ ls -ltr
+total 0
+-rw-r--r-- 1 oracle oinstall 0 Nov 26 13:05 arch_3
+-rw-r--r-- 1 oracle oinstall 0 Nov 26 13:05 arch_2
+-rw-r--r-- 1 oracle oinstall 0 Nov 26 13:05 arch_1</code></pre>
+                </div>
+
+                <h3 id="find-and-sort-files">Find and sort files</h3>
+                <p>Find example and explanation</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>find . -type f -mtime +1 -size +5000 -exec ls -l {} \; -exec gzip {} \;
+  
+#where . - it is directory where you situated
+#where -mtime  -  File's  data was last modified n*24 hours ago.
+#where -size +5000 - size 5MB
+#where exec \; - execution of comands
+#where ls -l - making the result more readable
+#where {} - it is the area that is dedicated by find where we need to execute command
+#where exec gzip {} \; - gzip files that are dedicated by find</code></pre>
+                </div>
+
+                <p>Find by size</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>find . -size +5M -exec ls -l {} \;</code></pre>
+                </div>
+
+                <p>Find by age</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>find . -name "*.aud" -mtime +7 -exec ls {} \;
+find . -name "*.aud" -mtime +7 -exec gzip -9 {} \;</code></pre>
+                </div>
+
+                <p>Find all Symlinks (symbolic links)</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>cd $ORACLE_HOME/..
+find . -type l -exec ls -l {} \;</code></pre>
+                </div>
+
+                <p>Find and sort files by size</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>find . -name "*.trc" -type f -exec du -Sh {} + | sort -rh | head -n 5</code></pre>
+                </div>
+
+                <h3 id="tar-files">Tar files</h3>
+                <p>Tar directory and all subdirectories</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>tar -cvzf /u01/app/12.1.0.2/grid12102.tar.gz /u01/app/12.1.0.2/grid
+ 
+#-c == --create         == create new archive
+#-v == --verbose        == verbosely list files processed (выводит список файлов которые тарит на данный момент)
+#-z == --gzip           == filter the archive through gzip
+#-f == --file=ARCHIVE   == use archive file or device ARCHIVE (обычно просто пишем итоговое имя архива и где он будет располагаться)</code></pre>
+                </div>
+
+                <p>Untar(extract) from archive</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>tar -zxvf /u01/app/12.1.0.2/grid12102.tar.gz
+ 
+#-x == --extract, --get == extract files from an archive</code></pre>
+                </div>
+
+                <h3 id="file-permissions">File permissions</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code># user | group | others
+0 | 0 0 0  - - -  No permission
+1 | 0 0 1  - - x  Only execute permission
+2 | 0 1 0  - w -  Only write/modify permission
+3 | 0 1 1  - w x  Only write and execute permission
+4 | 1 0 0  r - -  Only read permission
+5 | 1 0 1  r - x  Only read and execute permission
+6 | 1 1 0  r w -  Only read and write permission
+7 | 1 1 1  r w x  Read, write and execute permission
+
+4 - read
+2 - write/modify
+1 - execute</code></pre>
+                </div>
+
+                <h3 id="replace-in-file">Replace entries in a file</h3>
+                <p>From Vim</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>$ vi file.txt
+:%s/old-text/new-text/g</code></pre>
+                </div>
+
+                <p>From Perl</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>$ perl -pi -e 's:woody:buzz:g' file.txt</code></pre>
+                </div>
+
+                <h3 id="check-locked-files">Check locked files after removal</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>lsof -nP | grep '(deleted)'</code></pre>
+                </div>
+
+                <h3 id="grep-log-files">Grep log file</h3>
+                <p>Set log file mask:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>export PG_LOGS="postgresql*.log*"
+export PGB_LOGS="pgbouncer*.log*"</code></pre>
+                </div>
+
+                <p>Truncate log file for a specific time interval:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>awk '/^2025-01-20 13:[0-5][0-9]:[0-5][0-9]/ {p=1} /^2025-01-20 14:[0-5][0-9]:[0-5][0-9]/ {p=0} p' postgresql-*.log > period__T1_T2.log</code></pre>
+                </div>
+
+                <p>All DB errors:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E "WARNING|ERROR|FATAL|PANIC|corrupt|locked|COMMIT|broken|EOF|Segmentation fault|immediate shutdown|crash of another|holding the lock|deadlock" $PG_LOGS > errors_db_all.log</code></pre>
+                </div>
+
+                <p>All pgBouncer errors:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E "ERR|FATA|client_login_timeout|server_lifetime|cannot|eof" $PGB_LOGS > errors_pgbouncer.log</code></pre>
+                </div>
+
+                <p>Blocking sessions / Deadlocks:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E "waiting|locked|holding the lock|deadlock|lock:" $PG_LOGS > locks.log</code></pre>
+                </div>
+
+                <p>Long runnning SQL (depends in log_min_duration_statement parameter value):</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E "duration:" $PG_LOGS > long_running_queries.log</code></pre>
+                </div>
+
+                <p>Temp files:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E  "pgsql_tmp" $PG_LOGS > temp_files.log</code></pre>
+                </div>
+
+                <p>Messages related to COMMIT/ROLLBACK:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E "commit|rollback:" $PG_LOGS > commit_rollback.log</code></pre>
+                </div>
+
+                <p>Application related issues:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E  "duplicate|key|uniq|violates|constraint" $PG_LOGS > app_issues.log</code></pre>
+                </div>
+
+                <p>Connection lifetime:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>grep -i -E  "session time" $PG_LOGS | grep -v -E "user=postgres" > sess_time.log</code></pre>
+                </div>
+
+                <h3 id="quick-removal-perl">Bunch of files quick removal using Perl</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>cd /directory
+perl -e 'for(<*>){((stat)[9]<(unlink))}'</code></pre>
+                </div>
+
+                <h3 id="swap-usage">SWAP usage by process</h3>
+                <p><a href="https://www.cyberciti.biz/faq/linux-which-process-is-using-swap/">Source</a></p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>for file in /proc/*/status ; do awk '/VmSwap|Name/{printf $2 " " $3}END{ print ""}' $file; done | sort -k 2 -n -r | less</code></pre>
+                </div>
+
+                <h3 id="file-recovery">Text file recover after cat /dev/null > file.txt</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>dd if=/dev/sda1 | fgrep -B 7 -A 10 --text "Some text from your file to search" > /tmp/recovered_file
+ 
+#if = partition where file system with your damaged file is located
+#-B = N line before search pattern
+#-A = N lines after search pattern
+#>  = output file should be placed on another partition with enough disk space</code></pre>
+                </div>
+
+                <h3 id="ssh-keys">Generate SSH keys / passwordless ssh</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>{ mkdir -p ~/.ssh
+ssh-keygen -f ~/.ssh/id_rsa -t rsa -b 4096 -N ""
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+chmod 755 ~
+}
+ 
+echo "ssh-rsa assadasdasd" >> ~/.ssh/authorized_keys</code></pre>
+                </div>
+
+                <h3 id="listen-ports-netstat">Listen ports</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>netstat -tulpan | grep -i listen</code></pre>
+                </div>
+
+                <h3 id="network-speed">Check network Interface speed</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>$ lspci | egrep -i --color 'network|ethernet'
+01:00.0 Ethernet controller: Intel Corporation 82576 Gigabit Network Connection (rev 01)
+01:00.1 Ethernet controller: Intel Corporation 82576 Gigabit Network Connection (rev 01)
+07:00.0 Ethernet controller: Intel Corporation 82576 Gigabit Network Connection (rev 01)
+07:00.1 Ethernet controller: Intel Corporation 82576 Gigabit Network Connection (rev 01)
+13:00.0 Ethernet controller: Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection (rev 01)
+13:00.1 Ethernet controller: Intel Corporation 82599ES 10-Gigabit SFI/SFP+ Network Connection (rev 01)
+ 
+$ ethtool eth0 | grep -i speed</code></pre>
+                </div>
+
+                <h3 id="network-test">Network Interface speed test using Iperf</h3>
+                <p>Sources:</p>
+                <p>https://www.linode.com/docs/networking/diagnostics/install-iperf-to-diagnose-network-speed-in-linux/ 
+https://www.slashroot.in/iperf-how-test-network-speedperformancebandwidth
+http://winitpro.ru/index.php/2014/11/05/testirovanie-propusknoj-sposobnosti-seti-s-iperf/</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>[root@SERVER~]# iperf -s -w 32768 -p 4444
+ 
+[root@CLIENT~]# iperf -c 10.74.24.2 -p 4444 -P 32 -t 30 -w 32768</code></pre>
+                </div>
+
+                <h3 id="ip-addr-list">Get list of all IPs</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>ip -a address</code></pre>
+                </div>
+
+                <h3 id="scsi-bus">Scan / Rescan SCSI Bus</h3>
+                <p><a href="https://geekpeek.net/rescan-scsi-bus-on-linux-system/">Source</a></p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## Check
+ 
+find /sys -name scan
+
+## Monitor log using following before running below commands: tail -20f /var/log/messages
+ 
+echo "1" > /sys/class/fc_host/host7/issue_lip
+echo "- - -" > /sys/class/scsi_host/host7/scan
+ 
+echo "1" > /sys/class/fc_host/host8/issue_lip
+echo "- - -" > /sys/class/scsi_host/host8/scan
+ 
+## Check new size
+
+lsblk /dev/sddlmab
+ 
+## Re-scan:
+ 
+echo 1> /sys/class/block/sdf/device/rescan</code></pre>
+                </div>
+
+                <h3 id="pwd-expire">Avoid password expire</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## Check current settings
+ 
+chage -l oracle
+
+## Change
+ 
+chage -m 0 -M -1 -E -1 oracle</code></pre>
+                </div>
+
+                <h3 id="sar">Sar</h3>
+                <p>Sources:</p>
+                <p><a href="https://repost.aws/knowledge-center/ec2-linux-monitor-performance-with-sar">How can I configure and use SAR to monitor performance metrics on my Amazon EC2 Linux instance?</a></p>
+                <p><a href="https://www.thomas-krenn.com/en/wiki/Collect_and_report_Linux_System_Activity_Information_with_sar">Collect and report Linux System Activity Information with sar</a></p>
+                <p><a href="https://www.thegeekstuff.com/2011/03/sar-examples/">10 Useful Sar (Sysstat) Examples for UNIX / Linux Performance Monitoring</a></p>
+
+                <h4>CPU:</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>sar -P ALL 1 1
+## run queue and load average
+sar -q 1 3</code></pre>
+                </div>
+
+                <h4>Memory:</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>sar -r 1 3</code></pre>
+                </div>
+
+                <h4>Swap:</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>sar -S 1 3</code></pre>
+                </div>
+
+                <h4>Disk I/O:</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>sar -d -p 2 5</code></pre>
+                </div>
+
+                <h4>Network:</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>sar -n ALL</code></pre>
+                </div>
+
+                <h4>Historical:</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## Run queue
+sar -q -s 07:50:00 -e 08:00:00 -f /var/log/sa/sa01
+ 
+## DISK
+sar -dp -s 07:50:00 -e 08:00:00 -f /var/log/sa/sa01 | grep -E 'DEV|swap'
+ 
+## NETWORK
+sar -n ALL -s 07:50:00 -e 08:00:00 -f /var/log/sa/sa01 | less
+ 
+## ALL stats
+sar -A -s 07:50:00 -e 08:00:00 -f /var/log/sa/sa01 | less</code></pre>
+                </div>
+
+                <h3 id="git">Git</h3>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>TODO</code></pre>
+                </div>
+            </section>
+
+            <section id="postgresql" class="post-section">
+                <h2>PostgreSQL</h2>
+
+                <h3 id="pg-backup">Restore / Recover / Backup / PITR / Dump</h3>
+
+                <h4>pg_dump</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## Backup:
+pg_dump -Z1 -Fc db_name > /backup/db_name_<date>.dump
+ 
+## Restore:
+pg_restore -j 2 -d db_name /backup/db_name_<date>.dump</code></pre>
+                </div>
+
+                <h4>pg_basebackup</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## Backup:
+pg_basebackup -h ${HOSTNAME} -p 5432 -U bkp_usr -D /backup/<date> -Ft -z -Xs -P
+ 
+## Restore:
+tar -xzf /pgdata/backup_tests/pg_basebackup/base.tar.gz -C /pgdata/12/data
+tar -xzf /pgdata/backup_tests/pg_basebackup/pg_wal.tar.gz -C /pgdata/12/data/pg_wal
+tar -xzf /pgdata/backup_tests/pg_basebackup/16393.tar.gz -C /pgdata/12/ts/bench_db_data
+tar -xzf /pgdata/backup_tests/pg_basebackup/16394.tar.gz -C /pgdata/12/ts/bench_db_idx</code></pre>
+                </div>
+
+                <h4>pg_probackup</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>export CLNAME="patroni_cluster"
+export BKP_DIR="/mnt/pgbackup/backup"
+export EXT_DIR="/etc/pgbouncer:/etc/etcd:/etc/patroni"
+ 
+## Prepare:
+pg_probackup init -B $BKP_DIR
+pg_probackup add-instance -B $BKP_DIR -D $PGDATA --instance $CLNAME
+pg_probackup show -B $BKP_DIR --instance $CLNAME
+pg_probackup set-config -B $BKP_DIR --instance $CLNAME --archive-timeout='10min' --retention-redundancy=7 --retention-window=7
+ 
+## Backup:
+pg_probackup backup -B $BKP_DIR --instance $CLNAME -b FULL --compress --stream --temp-slot -E $EXT_DIR -j 2 --delete-expired --delete-wal -U postgres
+pg_probackup show -B $BKP_DIR --instance $CLNAME
+ 
+## Restore:
+pg_probackup restore -B $BKP_DIR --instance=$CLNAME -D $PGDATA -i RYU7ZV -j 2 --recovery-target='immediate' --progress --log-level-file=verbose --log-filename=restore_$(date +%Y%m%d)T$(date +%H%M%S).log --skip-external-dirs
+ 
+## Restore PITR:
+pg_probackup restore -B $BKP_DIR --instance=$CLNAME -D $PGDATA -j 2 --recovery-target-time='2022-08-04 22:20:00' --progress --log-level-file=verbose --log-filename=restore_$(date +%Y%m%d)T$(date +%H%M%S).log --skip-external-dirs
+ 
+## Remove backup:
+pg_probackup  delete -B ${BKP_DIR} --instance ${CLNAME} -i XYZ</code></pre>
+                </div>
+
+                <h4>pgBackRest</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## TODO</code></pre>
+                </div>
+
+                <h4>wal-g</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## TODO</code></pre>
+                </div>
+
+                <h4>barman</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## TODO</code></pre>
+                </div>
+
+                <h4>archive_command / restore_command examples</h4>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>## default
+archive_command = 'test ! -f /pgdata/arch/%f.gz && gzip < %p > /pgdata/arch/%f.gz'
+restore_command = 'scp postgres@srv-ubuntu-pgdb2.test.com:/pgdata/arch/%f.gz /pgdata/13/data/pg_wal/%f.gz && gunzip < /pgdata/13/data/pg_wal/%f.gz > %p && rm -f /pgdata/13/data/pg_wal/%f.gz'
+ 
+## pgBackRest
+todo
+ 
+## pg_probackup
+todo
+ 
+## wal-g
+todo
+ 
+## barman
+todo</code></pre>
+                </div>
+
+                <h3 id="flyway">Flyway example</h3>
+                <p><a href="https://flywaydb.org/download/">Download</a></p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>##
+## Oracle
+##
+ 
+$ /oracle/soft/flyway-5.0.7/flyway migrate -configFiles=/oracle/soft/migration_file.config
+  
+##
+## Config example:
+##
+ 
+$ cat /oracle/soft/migration_file.config
+++++++++++++++++++++
+flyway.baselineOnMigrate=true
+flyway.baselineVersion=0
+flyway.user=APPS
+flyway.password=***
+flyway.url=jdbc:oracle:thin:@111.222.333.444:1521:oraclesid
+flyway.locations=filesystem:/oracle/soft/migration
+flyway.table=flyway_schema_history
+  
+flyway.placeholders.tbsTables=APPS_T
+flyway.placeholders.tbsTablesSize=1G
+flyway.placeholders.tbsTablesDataFile=/oradata/ORCL/apps_t_01.dbf
+++++++++++++++++++++</code></pre>
+                </div>
+
+                <h3 id="liquibase">Liquibase example</h3>
+                <p><a href="https://www.liquibase.org/download">Download</a></p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>##
+## Oracle
+##
+  
+$ java -jar "/oracle/soft/liquibase.jar" --classpath=/oracle/soft/oracle_jdbc.jar --username=APPS --password=*** --url=jdbc:oracle:thin:@111.222.333.444:1521:oraclesid --defaultSchemaName=APPS --changeLogFile=/oracle/soft/changelog.xml --logLevel=info update -Dtablespace_t=APPS_T -Dtablespace_i=APPS_I -Dtablespace_l=APPS_L -Donline_user=APPS -Ddefault_password=***
+  
+##
+## PostgreSQL
+##
+  
+$ java -jar "/home/postgres/soft/liquibase.jar" --classpath=/home/postgres/soft/postgresql_jdbc.jar --username=apps --password=*** --url=jdbc:postgresql://111.222.333.444:5432/pgdbname --changeLogFile=/home/postgres/soft/changelog.xml --logLevel=info --driver=org.postgresql.Driver update -Drole=RISKMETRICS_ROLE -Dtablespace_t=APPS_T -Dtablespace_i=APPS_I -Dtablespace_l=APPS_L -Ddefault_password=***
+  
+Note: variables above could vary.</code></pre>
+                </div>
+
+                <h3 id="pgbench">PgBench</h3>
+                <p> Init example with DB size ~ 102 GB:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>pgbench --initialize --scale=7000 --tablespace=bench_db_data --index-tablespace=bench_db_idx --user=bench_usr --host=${HOSTNAME} --port=5432 bench_db</code></pre>
+                </div>
+
+                <p> Start load:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>TODOTODOTODO</code></pre>
+                </div>
+
+                <h3 id="pg-waldump">pg_waldump</h3>
+                <p>Stat between two WAL files:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>pg_waldump -z walname1 walname2</code></pre>
+                </div>
+
+                <p>Check WAL content:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>pg_waldump walname01 | less</code></pre>
+                </div>
+
+                <h3 id="ash-viewer">ASH Viewer</h3>
+                <p><a href="https://github.com/akardapolov/ASH-Viewer">GitHub - ASH Viwer</a></p>
+                <p>1) <a href="https://jdk.java.net/archive/">Download</a> and install Java</p>
+                <p>2) <a href="https://jdbc.postgresql.org/download/">Download</a> PostgreSQL JDBC driver</p>
+                <p>3) Start ASH Viwer</p>
+
+                <p>Windows:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code> ## Open CMD as Administrator
+cmd> setx /m JAVA_HOME "C:\Users\admin\Desktop\soft\openjdk-11.0.2_windows-x64_bin\jdk-11.0.2"
+
+cmd> echo %JAVA_HOME%
+C:\Users\admin\Desktop\soft\openjdk-11.0.2_windows-x64_bin\jdk-11.0.2
+
+cmd> java -version
+openjdk version "11.0.2" 2019-01-15
+OpenJDK Runtime Environment 18.9 (build 11.0.2+9)
+OpenJDK 64-Bit Server VM 18.9 (build 11.0.2+9, mixed mode)
+
+cmd> setx /m ASHV_HOME "C:\Users\admin\Desktop\soft\ashv-4.4.1-bin\ashv-4.4.1-bin"
+
+## Restart CMD
+
+## Edit "%ASHV_HOME%/run.bat" script with your JAVA related variables
+
+cmd> cd /d %ASHV_HOME%
+
+cmd> run.bat</code></pre>
+                </div>
+
+                <p>Linux:</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>export ASHV_VERSION="4.4.1"
+export ASHV_HOME="/home/user/soft/ash-viewer"
+export ASHV_BIN="$ASHV_HOME/ashv-$ASHV_VERSION-bin"
+export ASHV_LOGS="$ASHV_HOME/logs"
+export JAVA_HOME="/home/user/soft/jre"
+
+alias cdashv="cd $ASHV_HOME"
+alias cdashvbin="cd $ASHV_BIN"
+alias cdashvlogs="cd $ASHV_HOME/logs"
+
+alias ashv="cd $ASHV_BIN && nohup $JAVA_HOME/bin/java -Xmx1024m -Dsun.java2d.uiScale=1.0 -cp \"$ASHV_BIN/ashv.jar:$ASHV_BIN/bc-noncert-1.0.2.4.jar\" Main > $ASHV_LOGS/ashv_sess_$(date +%Y%m%d)T$(date +%H%M%S).log 2>&1 &"</code></pre>
+                </div>
+
+                <p>Connection details example:</p>
+                <div class="image-container">
+                    <img src="images/ashv_conn_example.png" class="blog-image">
+                </div>
+
+                <h3 id="jdbc-conn-string">JDBC Connection string examples</h3>
+                <p>TODOTODOTODO</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>TODOTODOTODO</code></pre>
+                </div>
+
+                <p>TODOTODOTODO</p>
+                <div class="code-block">
+                    <span class="code-language">Bash</span>
+                    <pre><code>TODOTODOTODO</code></pre>
+                </div>
             </section>
 
             <div class="back-to-top">

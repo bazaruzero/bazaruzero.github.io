@@ -266,6 +266,24 @@ body {
     color: #0066cc;
 }
 
+.table-of-contents ul ul {
+    padding-left: 20px;
+    margin-top: 5px;
+}
+
+.table-of-contents ul ul li {
+    margin-bottom: 4px;
+}
+
+.table-of-contents ul ul a {
+    font-size: 0.9em;
+    color: var(--gray-text);
+}
+
+.table-of-contents ul ul a:hover {
+    color: #0066cc;
+}
+
 .post-section {
     margin-bottom: 40px;
     scroll-margin-top: 20px;
