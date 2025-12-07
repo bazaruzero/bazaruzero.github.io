@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBA Notes - Partitions Maintenance</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <h1><a href="../../index.html">DBA Notes</a></h1>
+        <a href="https://github.com/bazaruzero" class="github-link" target="_blank" 
+           rel="noopener noreferrer" aria-label="GitHub profile">
+            <svg width="32" height="32" viewBox="0 0 98 96" fill="currentColor">
+                <title>GitHub Logo</title>
+                <path d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
+            </svg>
+        </a>
+    </header>
+
+    <nav class="categories" aria-label="Blog categories">
+        <a href="../../categories/postgresql.html">PostgreSQL</a>
+        <a href="../../categories/oracle.html">Oracle</a>
+        <a href="../../categories/tools.html">Tools</a>
+        <a href="../../categories/theory_and_experiments.html">T&E</a>
+        <a href="../../categories/misc.html">Misc</a>
+        <a href="../../categories/bookmarks.html">Bookmarks</a>
+    </nav>
+
+    <main class="main-content">
+        <article class="blog-post">
+            <h1 class="post-title">Partitions Maintenance</h1>
+
+            <section id="part1" class="post-section">
+                <p>In this article, we explore different approaches to attaching and detaching partitions for partitioned tables in PostgreSQL.</p>
+            </section>            
+
+
+            <nav class="table-of-contents">
+                <h2>Table of Contents</h2>
+                <ul>
+                    <li><a href="#testenv">Test environment</a></li>
+                    <li><a href="#tools">Tools</a></li>
+                    <li><a href="#functests">Functional testing</a></li>
+                    <li><a href="#loadtests">Load testing</a></li>
+                    <li><a href="#results">Results</a></li>
+                    <li><a href="#limits">Limitations</a></li>
+                    <li><a href="#wa">Workarounds</a></li>
+                    <li><a href="#docs">Docs</a></li>
+                    <li><a href="#todo">TODO</a></li>
+                </ul>
+            </nav>
+
+			<section id="testenv" class="post-section">
+				<h2>Test environment</h2>
+				<div class="specs-container">
+					<div class="specs-section">
+						<h3>Host:</h3>
+						<ul class="specs-list">
+							<li><strong>Device:</strong> ThinkPad T480 Laptop</li>
+							<li><strong>CPU:</strong> Intel(R) Core(TM) i7-8650U CPU @ 1.90GHz (2.11 GHz), 4 Cores (8 Logical Threads)</li>
+							<li><strong>RAM:</strong> 16GB</li>
+							<li><strong>Disk:</strong> SSD LITEONIT LCS-256M6S 2.5 7mm 256GB</li>
+							<li><strong>OS:</strong> Windows 11</li>
+							<li><strong>Virtualization:</strong> Oracle VirtualBox 7.2.4 r170995</li>
+						</ul>
+					</div>
+					
+					<div class="specs-section">
+						<h3>Virtual Machine:</h3>
+						<ul class="specs-list">
+							<li><strong>vCPU:</strong> 4</li>
+							<li><strong>RAM:</strong> 4 GB</li>
+							<li><strong>OS:</strong> Ubuntu 24.04.2 LTS</li>
+						</ul>
+					</div>
+					
+					<div class="specs-section">
+						<h3>PostgreSQL Versions (compiled from sources):</h3>
+						<ul class="specs-list">
+							<li>10.23</li>
+                            <li>11.22</li>
+                            <li>12.22</li>
+                            <li>13.22</li>
+                            <li>14.19</li>
+                            <li>15.14</li>
+                            <li>16.10</li>
+                            <li>17.6</li>
+                            <li>18.0</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
+
+			<section id="tools" class="post-section">
+				<h2>Tools</h2>
+					<div class="specs-section">
+						<ul class="specs-list">
+							<li><a href="./scripts/pg_src_setup.sh">pg_src_setup.sh</a> - downloads and compiles the required Postgres versions.</li>
+							<li><a href="./scripts/test_case_attach_detach.sql">test_case_attach_detach.sql</a> - sql script containing the commands for each test case.</li>
+							<li><a href="./scripts/run_test.sh">run_test.sh</a> - script that runs the test for each version of Postgres.</li>
+							<li><a href="./scripts/load">Set of scripts to test each test case under load:</a>
+								<ul class="specs-sublist">
+									<li>case*.sql - set of scripts containing SQL commands to reproduce each test case. Execution takes place within a transaction; after executing the target command, a 15-second pause is introduced to clearly demonstrate the potential issues that each approach may cause under high load.</li>
+									<li><a href="./scripts/load/load_read.sql">load_read.sql</a> - script that simulates a read load.</li>
+									<li><a href="./scripts/load/load_write.sql">load_write.sql</a> - script that simulates a write load.</li>
+                                    <li><a href="./scripts/load/reinit.sql">reinit.sql</a> - script that recreates database objects before each new test case.</li>
+                                    <li><a href="./scripts/load/run_load.sh">run_load.sh</a> - script that runs each of the test cases under load.</li>
+								</ul>
+							</li>
+                            <li><a href="https://bazaruzero.github.io/posts/pinned/ad_hoc/ad_hoc.html#ash-viewer">ASH Viewer</a> - tool for monitoring database wait events during load testing.</li>
+						</ul>
+					</div>
+			</section>
+
+			<section id="functests" class="post-section">
+				<h2>Functional testing</h2>
+				<p>Four tests were run on each version of Postgres:</p>
+				<div class="specs-section">
+					<ul class="specs-list">
+						<li><strong>Case #1:</strong> take partition <strong>attach</strong> operation using:</li>
+                             <code>CREATE TABLE yyy PARTITION OF yyy;</code>
+                        <li><strong>Case #2:</strong> take partition <strong>attach</strong> operations using:</li>
+                            <code>CREATE TABLE yyy LIKE zzz;</code><br>
+                            <code>ALTER TABLE xxx ATTACH PARTITION yyy;</code>
+                        <li><strong>Case #3:</strong> take partition <strong>detach</strong> operation using:</li>
+                            <code> DROP TABLE yyy;</code>
+                        <li><strong>Case #4:</strong> take partition <strong>detach</strong> operation using:</li>
+                            <code>ALTER TABLE xxx DETACH PARTITION yyy;</code><br>
+                            <code>DROP TABLE yyy;</code>
+                        <li><strong>Case #5:</strong> take partition <strong>detach</strong> operation using:</li>
+                            <code>ALTER TABLE xxx DETACH PARTITION yyy <strong>CONCURRENTLY</strong>;</code><br>
+                            <code>DROP TABLE yyy;</code>
+					</ul>
+				</div>
+                <p>The primary goal of the tests was to understand which locks would be acquired and on which objects. The main focus was on the parent table and how attach/detach procedures could impact its operation.</p>
+                <p>Test results are in table below:</p>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>PG Version</th>
+                                <th>Case #1</th>
+                                <th>Case #2</th>
+                                <th>Case #3</th>
+                                <th>Case #4</th>
+                                <th>Case #5</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>10.23</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>Not available</strong></font></td>
+                            </tr>
+                            <tr>
+                                <td>11.22</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>Not available</strong></font></td>
+                            </tr>
+                            <tr>
+                                <td>12.22</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><strong><a href="https://www.postgresql.org/docs/current/explicit-locking.html#:~:text=SHARE%20UPDATE%20EXCLUSIVE%20%28ShareUpdateExclusiveLock%29">ShareUpdateExclusiveLock</a></strong> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>Not available</strong></font></td>
+                            </tr>
+                            <tr>
+                                <td>13.22</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><strong><a href="https://www.postgresql.org/docs/current/explicit-locking.html#:~:text=SHARE%20UPDATE%20EXCLUSIVE%20%28ShareUpdateExclusiveLock%29">ShareUpdateExclusiveLock</a></strong> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>Not available</strong></font></td>
+                            </tr>
+                            <tr>
+                                <td>14.19</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><strong><a href="https://www.postgresql.org/docs/current/explicit-locking.html#:~:text=SHARE%20UPDATE%20EXCLUSIVE%20%28ShareUpdateExclusiveLock%29">ShareUpdateExclusiveLock</a></strong> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=If%20CONCURRENTLY%20is,a%20default%20partition."><strong>Available</strong></a></font></td>
+                            </tr>
+                            <tr>
+                                <td>15.14</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><strong><a href="https://www.postgresql.org/docs/current/explicit-locking.html#:~:text=SHARE%20UPDATE%20EXCLUSIVE%20%28ShareUpdateExclusiveLock%29">ShareUpdateExclusiveLock</a></strong> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=If%20CONCURRENTLY%20is,a%20default%20partition."><strong>Available</strong></a></font></td>
+                            </tr>
+                            <tr>
+                                <td>16.10</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><strong><a href="https://www.postgresql.org/docs/current/explicit-locking.html#:~:text=SHARE%20UPDATE%20EXCLUSIVE%20%28ShareUpdateExclusiveLock%29">ShareUpdateExclusiveLock</a></strong> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=If%20CONCURRENTLY%20is,a%20default%20partition."><strong>Available</strong></a></font></td>
+                            </tr>
+                            <tr>
+                                <td>17.6</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><strong><a href="https://www.postgresql.org/docs/current/explicit-locking.html#:~:text=SHARE%20UPDATE%20EXCLUSIVE%20%28ShareUpdateExclusiveLock%29">ShareUpdateExclusiveLock</a></strong> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=If%20CONCURRENTLY%20is,a%20default%20partition."><strong>Available</strong></a></font></td>
+                            </tr>
+                            <tr>
+                                <td>18.0</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><strong><a href="https://www.postgresql.org/docs/current/explicit-locking.html#:~:text=SHARE%20UPDATE%20EXCLUSIVE%20%28ShareUpdateExclusiveLock%29">ShareUpdateExclusiveLock</a></strong> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><font color="red"><strong>AccessExclusiveLock</strong></font> on parent table</td>
+                                <td><a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=If%20CONCURRENTLY%20is,a%20default%20partition."><strong>Available</strong></a></font></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+			</section>
+
+			<section id="loadtests" class="post-section">
+				<h2>Load testing</h2>
+                <p>Testing was performed on Postgres version 15.14. The results are shown in the screenshot below:</p>
+                <div class="image-container">
+                    <img src="images/ashv_tests_info.png" class="blog-image">
+                </div>
+			</section>
+
+			<section id="results" class="post-section">
+				<h2>Results</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li>For versions 10 and 11, there is no safe way to use the table partition Attach/Detach procedures, as the exclusive lock on the parent table will block all operations on it.</li>
+                        <li>For versions 12 and 13, there is a safe way to attach a partition using the combination of commands <code>CREATE TABLE yyy LIKE zzz; ALTER TABLE xxx ATTACH PARTITION yyy;</code>. However, there is still no safe method for performing a Detach operation under high load.</li>
+                        <li>For versions 14 and above, there is a safe method for attaching a partition using the command sequence <code>CREATE TABLE yyy LIKE zzz; ALTER TABLE xxx ATTACH PARTITION yyy;</code>. For the <code>DETACH</code> operation, the <code>CONCURRENTLY</code> option can be used; however, under high load, there is a possibility that this command may fail to acquire the required short-term lock.</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="limits" class="post-section">
+				<h2>Limitations</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li>While versions 14 and above support non-blocking partition detachment using the <code>CONCURRENTLY</code> option, this feature cannot be used within PL/pgSQL procedures or functions:<br>
+                            <code>ERROR: ALTER TABLE ... DETACH CONCURRENTLY cannot run inside a transaction block</code></li>
+                        <li><a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=At%20most%20one%20partition%20in%20a%20partitioned%20table%20can%20be%20pending%20detach%20at%20a%20time.">"At most one partition in a partitioned table can be pending detach at a time."</a> This means that if you need to detach multiple partitions, it must be done sequentially.</li>
+                        <li>The <code>CONCURRENTLY</code> option in the <code>DETACH PARTITION</code> command <a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=CONCURRENTLY%20cannot%20be%20run%20in%20a%20transaction%20block%20and%20is%20not%20allowed%20if%20the%20partitioned%20table%20contains%20a%20default%20partition.">cannot</a> be used if a <code>DEFAULT</code> partition is defined for the parent table:<br>
+                            <code>ERROR:  cannot detach partitions concurrently when a default partition exists</code></li>
+                        <li>If a table has a <code>DEFAULT</code> partition, adding a new partition <a href="https://www.postgresql.org/docs/current/sql-altertable.html#:~:text=When%20a%20table,a%20foreign%20table.">can take a significant amount of time</a>, as PostgreSQL must verify that the data in the <code>DEFAULT</code> partition does not belong (does not satisfy the condition) to the partition you are adding.</li>
+                        <li>Global statistics are <a href="https://www.postgresql.org/docs/current/sql-analyze.html#:~:text=The%20autovacuum%20daemon%20does%20not%20process%20partitioned%20tables%2C%20nor%20does%20it%20process%20inheritance%20parents%20if%20only%20the%20children%20are%20ever%20modified.%20It%20is%20usually%20necessary%20to%20periodically%20run%20a%20manual%20ANALYZE%20to%20keep%20the%20statistics%20of%20the%20table%20hierarchy%20up%20to%20date.">not automatically gathered by the autovacuum process</a> if changes occur only on child tables within the partitioning hierarchy. Therefore, it is periodically necessary to collect statistics manually using <code>ANALYZE parent_table;</code>.</li>
+                        <li>After creating a new partition, its statistics may not be up-to-date initially. Therefore, you either need to configure more aggressive autovacuum settings, manually collect statistics on the parent table to stabilize query plans, or use query hints (via <a href="https://github.com/ossc-db/pg_hint_plan">pg_hint_plan</a>) to ensure plans are not affected by newly created partitions.</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="wa" class="post-section">
+				<h2>Workarounds</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li>To perform regular concurrent <code>DETACH</code> operations on outdated partitions, you will need to write a script that identifies the partition (by name) matching your removal criteria and executes a <code>DETACH CONCURRENTLY</code> command separately. The easiest approach is to combine Bash and SQL with a Cron schedule. If you need to keep all the logic within the database, you can consider using <a href="https://github.com/citusdata/pg_cron">pg_cron</a>. In this case, the database should contain a procedure that runs regularly via pg_cron, which in turn creates another job consisting of a single <code>DETACH CONCURRENTLY</code> command.</li>
+                        <li>For versions 10 and 11, <code>ATTACH/DETACH</code> operations must be performed during periods of low activity, and you should use the <code>statement_timeout / lock_timeout</code> parameters to prevent huge lock queues. Additionally, you have to implement retry logic in case the required locks cannot be acquired.</li>
+                        <li>For versions 12 and 13, <code>DETACH</code> operations should be performed during periods of low activity. You should also use the <code>statement_timeout / lock_timeout</code> parameters to prevent huge lock queues. Additionally, you have to implement retry logic in case the required locks cannot be acquired.</li>
+                        <li>If, for some reason, a <code>DETACH</code> operation fails (e.g., due to a server crash) and a partition remains in the "detaching" state, you must use the <code>FINALIZE</code> option. It is advisable to include this check in your scripts before issuing the DETACH command. For example, if the partition's status in the <a href="https://www.postgresql.org/docs/current/catalog-pg-inherits.html#:~:text=using%20declarative%20partitioning.-,inhdetachpending,-bool">pg_inherits.indetachpending</a> column is <code>TRUE</code>, you should add the <code>FINALIZE</code> option.</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="docs" class="post-section">
+				<h2>Docs</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li>About timeout options available in Postgres (lock_timeout, statement_timeout, idle_in_transaction_timeout, idle_session_timeout, transaction_timeout): <a href="https://www.bytebase.com/blog/postgres-timeout/">Postgres Timeout Explained</a></li>
+                        <li>A deeper explanation of the need to use lock_timeout: <a href="https://postgres.ai/blog/20210923-zero-downtime-postgres-schema-migrations-lock-timeout-and-retries">Zero-downtime Postgres schema migrations need this: lock_timeout and retries</a></li>
+                        <li>Another example on how to perform object modifications in your database with minimal downtime caused by long running locks: <a href="https://www.depesz.com/2019/09/26/how-to-run-short-alter-table-without-long-locking-concurrent-queries/">How to run short ALTER TABLE without long locking concurrent queries</a></li>
+                        <li><a href="https://dev-aditya.medium.com/partitioning-in-postgresql-an-in-depth-guide-58e78e79a9b7#:~:text=PostgreSQL%20Enhancements%20Over%20Versions">PostgreSQL Partitioning Enhancements Over Versions</a></li>
+                        <li>GitLab experience in partitioning:</li>
+                            <ul class="specs-sublist">
+                                <li><a href="https://gitlab.com/groups/gitlab-org/-/epics/2023">Database Partitioning Epic #2023</a></li>
+                                <li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/372088">Reduce locks when detaching database partitions</a></li>
+                                <li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/538988">Reduce database lock acquired by the partition manager</a></li>
+                            </ul>
+                        <li>Some notes about auto-partititioning:</li>
+                            <ul class="specs-sublist">
+                                <li><a href="https://www.cybertec-postgresql.com/en/automatic-partition-creation-in-postgresql/">Cybertec - Automatic partition creation in PostgreSQL</a></li>
+                                <li><a href="https://www.postgresql.org/message-id/7fec3abb-c663-c0d2-8452-a46141be6d4a@postgrespro.ru">Proposal: Automatic partition creation</a></li>
+                            </ul>
+                        <li>About partitioning of existing tables with minimal downtime: <a href="https://www.kylehailey.com/post/postgres-partition-conversion-minimal-downtime">Postgres Partition Conversion: minimal downtime</a></li>
+                        <li>About LockManager issue you can face after partitioning: <a href="https://www.kylehailey.com/post/postgres-partition-pains-lockmanager-waits">Postgres Partition Pains - LockManager Waits</a></li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="todo" class="post-section">
+				<h2>TODO</h2>
+                <p>Additional checks are required:</p>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li>with foreign keys</li>
+                        <li>with <code>DEFAULT</code> partitioned defined</li>
+					</ul>
+				</div>
+			</section>
+
+            <div class="back-to-top">
+                <a href="#top">↑ Back to Top</a>
+            </div>
+        </article>
+    </main>
+
+    <footer class="disclaimer">
+        <hr />
+        <p>
+            DISCLAIMER:<br>
+            The information presented here is intended for informational purposes only. The author assumes no responsibility or liability for any damages resulting from the application of the techniques described herein. Use this content at your own risk.<br>
+            Always create backups and test configurations thoroughly before implementing them in live environments.
+        </p>
+    </footer>
+</body>
+</html>
