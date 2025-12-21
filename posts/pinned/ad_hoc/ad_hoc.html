@@ -73,6 +73,7 @@
                             <li><a href="#pg-waldump">pg_waldump</a></li>
                             <li><a href="#ash-viewer">ASH Viewer</a></li>
                             <li><a href="#jdbc-conn-string">JDBC Connection string examples</a></li>
+                            <li><a href="#parallel-idx-creation">Parallel Index Creation</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -694,11 +695,42 @@ alias ashv="cd $ASHV_BIN && nohup $JAVA_HOME/bin/java -Xmx1024m -Dsun.java2d.uiS
                     <pre><code>TODOTODOTODO</code></pre>
                 </div>
 
-                <p>TODOTODOTODO</p>
+                <h3 id="parallel-idx-creation">Parallel Index Creation</h3>
+                <p><b>Docs:</b></p>
+					<ul class="specs-list">
+                        <li><a href="https://www.cybertec-postgresql.com/en/postgresql-parallel-create-index-for-better-performance/">CYBERTEC | PostgreSQL: Parallel CREATE INDEX for better performance</a></li>
+                        <li><a href="https://www.cybertec-postgresql.com/en/speeding-up-index-creation-in-postgresql/">CYBERTEC | Speeding up index creation in PostgreSQL</a></li>
+                        <li><a href="https://postgres.ai/docs/postgres-howtos/performance-optimization/indexing/">POSTGRESAI | Useful notes abount Indexing</a></li>
+                        <li><a href="https://postgres.ai/docs/postgres-howtos/performance-optimization/indexing/rebuild-indexes-without-deadlocks">POSTGRESAI | How to rebuild many indexes using many backends avoiding deadlocks</a></li>
+                        <li><a href="https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY:~:text=is%20off.-,Building%20Indexes%20Concurrently,-Creating%20an%20index">DOCS | Building Indexes Concurrently</a></li>
+                        <li><a href="https://edu.postgrespro.ru/postgresql_internals-15.pdf">BOOK | Egor Rogov. PostgreSQL 14 Internals. Moscow, 2023., page 305</a></li>
+                        <li><a href="https://github.com/postgres/postgres/blob/576b25bfd0e9a1d5bbc54931e888135bc6da8a2f/src/backend/optimizer/path/allpaths.c#L4165-L4181">SOURCE CODE | Block about calculating the number of parallel workers</a></li>
+					</ul>
+                <p><b>Example:</b></p>
                 <div class="code-block">
-                    <span class="code-language">Bash</span>
-                    <pre><code>TODOTODOTODO</code></pre>
+                    <span class="code-language">SQL</span>
+                    <pre><code>SET maintenance_work_mem = '128GB';
+SET max_parallel_maintenance_workers = 96;
+
+ALTER TABLE mytable SET (parallel_workers = 96);
+
+CREATE INDEX IF NOT EXISTS idx_mytable_id_status on mytable(id) WHERE status IS NOT NULL;
+
+ALTER TABLE mytable RESET (parallel_workers);</code></pre>
                 </div>
+                <p><i>Increasing <code>max_parallel_workers</code> setting within a session does not guarantee that the specified number of parallel workers will actually be used during table scanning for index creation.
+                    Decision about how many parallel workers will be used for a <code>CREATE INDEX</code> command is made by the PostgreSQL Optimizer based on <code>log(3, relpages)</code> formula.
+                    To bypass the optimizer's decision, set the <code>parallel_workers</code> parameter at the table level as shown above.
+                </i></p>
+
+                <p><b>Notes:</b></p>
+					<ul class="specs-list">
+                        <li>In case of <code>CONCURRENTLY</code> option with parallel settings above - <a href="https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY:~:text=only%20the%20first%20table%20scan%20is%20actually%20performed%20in%20parallel">only the first table scan is actually performed in parallel.</a></li>
+                        <li>Reindexing several indexes on one table with <code>CONCURRENTLY</code> option may cause deadlocks.</li>
+                        <li>Above example works only for NON-partitioned tables. If you need to build index for partitioned table in parallel you can create index for each partitioned and then run create index on parent table. <a href="https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY:~:text=Concurrent%20builds%20for,metadata%20only%20operation.">Such method is also used for <code>CUNCURRENTLY</code> option for partitioned tables.</a></code></li>
+                        <li>Note about <code>parallel_workers</code> <a href="https://www.cybertec-postgresql.com/en/postgresql-parallel-create-index-for-better-performance/#:~:text=ALTER%20TABLE%20tab%20SET%20(parallel_workers%20%3D%2032)%3B">setting for a single table by Laurenz Albe.</a></li>
+					</ul>
+
             </section>
 
             <div class="back-to-top">
