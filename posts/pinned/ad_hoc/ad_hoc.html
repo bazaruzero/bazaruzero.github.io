@@ -73,6 +73,7 @@
                             <li><a href="#pg-waldump">pg_waldump</a></li>
                             <li><a href="#ash-viewer">ASH Viewer</a></li>
                             <li><a href="#jdbc-conn-string">JDBC Connection string examples</a></li>
+                            <li><a href="#pg-workers-params">Postgres Workers Parameters</a></li>
                             <li><a href="#parallel-idx-creation">Parallel Index Creation</a></li>
                         </ul>
                     </li>
@@ -693,6 +694,18 @@ alias ashv="cd $ASHV_BIN && nohup $JAVA_HOME/bin/java -Xmx1024m -Dsun.java2d.uiS
                 <div class="code-block">
                     <span class="code-language">Bash</span>
                     <pre><code>TODOTODOTODO</code></pre>
+                </div>
+                
+                <h3 id="pg-workers-params">Postgres Workers Parameters</h3>
+                <p><b>Docs:</b></p>
+					<ul class="specs-list">
+                        <li><a href="https://jamesguthrie.ch/blog/maxing-out-max-parallel-workers/">Maxing out max_parallel_workers in Postgres</a></li>
+                        <li><a href="https://www.pgmustard.com/blog/max-parallel-workers-per-gather">Increasing max parallel workers per gather in Postgres</a></li>
+                        <li><a href="https://thebuild.com/blog/2023/02/28/workers-of-the-world-unite/">Workers of the World, Unite!</a></li>
+					</ul>
+                <p><b>Scheme:</b></p>
+                <div class="image-container">
+                    <img src="images/pg_worker_processes.drawio.png" class="blog-image">
                 </div>
 
                 <h3 id="parallel-idx-creation">Parallel Index Creation</h3>
