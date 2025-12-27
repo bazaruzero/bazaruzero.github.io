@@ -241,6 +241,7 @@
                         <li>For versions 10 and 11, there is no safe way to use the table partition Attach/Detach procedures, as the exclusive lock on the parent table will block all operations on it.</li>
                         <li>For versions 12 and 13, there is a safe way to attach a partition using the combination of commands <code>CREATE TABLE yyy LIKE zzz; ALTER TABLE xxx ATTACH PARTITION yyy;</code>. However, there is still no safe method for performing a Detach operation under high load.</li>
                         <li>For versions 14 and above, there is a safe method for attaching a partition using the command sequence <code>CREATE TABLE yyy LIKE zzz; ALTER TABLE xxx ATTACH PARTITION yyy;</code>. For the <code>DETACH</code> operation, the <code>CONCURRENTLY</code> option can be used; however, under high load, there is a possibility that this command may fail to acquire the required short-term lock.</li>
+                        <li><b>In practice its much better to implement "hard" detach without concurrently, but with <a href="https://postgres.ai/blog/20210923-zero-downtime-postgres-schema-migrations-lock-timeout-and-retries#graceful-schema-changes-lock_timeout-and-retries">some kind of retry logic</a></b>.</li>
 					</ul>
 				</div>
 			</section>
