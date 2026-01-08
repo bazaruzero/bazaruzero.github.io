@@ -75,6 +75,7 @@
                             <li><a href="#jdbc-conn-string">JDBC Connection string examples</a></li>
                             <li><a href="#pg-workers-params">Postgres Workers Parameters</a></li>
                             <li><a href="#parallel-idx-creation">Parallel Index Creation</a></li>
+                            <li><a href="#pg2java-data-types-map">Postgres to Java Data types mapping</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -743,6 +744,11 @@ ALTER TABLE mytable RESET (parallel_workers);</code></pre>
                         <li>Above example works only for NON-partitioned tables. If you need to build index for partitioned table in parallel you can create index for each partitioned and then run create index on parent table. <a href="https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY:~:text=Concurrent%20builds%20for,metadata%20only%20operation.">Such method is also used for <code>CUNCURRENTLY</code> option for partitioned tables.</a></code></li>
                         <li>Note about <code>parallel_workers</code> <a href="https://www.cybertec-postgresql.com/en/postgresql-parallel-create-index-for-better-performance/#:~:text=ALTER%20TABLE%20tab%20SET%20(parallel_workers%20%3D%2032)%3B">setting for a single table by Laurenz Albe.</a></li>
 					</ul>
+
+                <h3 id="pg2java-data-types-map">Postgres to Java Data types mapping</h3>
+                <div class="image-container">
+                    <img src="images/pg2java_data_types.png" class="blog-image">
+                </div>
 
             </section>
 
