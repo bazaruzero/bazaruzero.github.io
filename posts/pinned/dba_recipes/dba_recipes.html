@@ -53,9 +53,18 @@
                     <li>
                         <a href="#common">Common</a>
                             <ul>
-                                <li><a href="yyy">xxx</a></li>
-                                <li><a href="yyy">xxx</a></li>
-                                <li><a href="yyy">xxx</a></li>
+                                <li><a href="#c1">Optimization approach by Nikolay Samokhvalov</a></li>
+                                <li><a href="#c2">Prepared Statements and unlucky cached custom plan</a></li>
+                                <li><a href="#c3">Prepared Statements with Partitioned Tables (LockManager waits)</a></li>
+                                <li><a href="https://postgrespro.ru/list/id/CAJrrPGeQ-oQdEHUHyB9xYaF0Da5YOPYbsGcH5hN2RaSkmFscfA@mail.gmail.com">Query is executed slower on hot standby slave databasethen on master database</a></li>
+                                <li><a href="#c4">Inactive Logical Replication Slot problems (catalog_xmin)</a></li>
+                                <li><a href="#c5">LWLock:BufferMapping possible reasons</a></li>
+                                <li><a href="#c6">Optimizer Statistics on partitioned tables</a></li>
+                                <li><a href="#c7">Optimizer Statistics problems on newly created table partition</a></li>
+                                <li><a href="#c8">HASH partitioning for distributing write-load</a></li>
+                                <li><a href="#c9">Foreign Keys in PostgreSQL are harmful</a></li>
+                                <li><a href="#c10">DELETE from one table affects another</a></li>
+                                <li><a href="#c11">Consider additional abstractions in the database</a></li>
                             </ul>
                     </li>
                     <li>
@@ -122,7 +131,63 @@
 
             <section id="common" class="post-section">
                 <h2>Common</h2>
-                <p>ToDo</p>
+                
+                <h3 id="c1">Optimization approach by Nikolay Samokhvalov</h3>
+                    <p>Two levels of query analysis: <i>"micro"</i> and <i>"macro"</i> (<a href="https://x.com/samokhvalov/status/1815927716413423988">source</a>).</p>
+                    <p><b>Micro level</b> - the analysis of a single query planning and execution. The main tool here is <code>EXPLAIN (ANALYZE, BUFFERS)</code>. Goals: understand planner's decisions, find suboptimal behavior and optimization opportunities. <b>Planner behavior depends on two inputs only: statistics (data volumes and distribution) and Postgres settings</b>. That's it. Real physical resources don't matter for the planner, it doesn't know how much RAM you have or how fast the disks are.</p>
+                    <p><b>Macro level</b> — the analysis of complex workloads, behaviors of multiple sessions, and the database system as whole, with all its components participating in query processing such as buffer pool, lock manager, checkpointer. <b>Tools</b>: pg_stat_statements, logs, wait event analysis (sampling of pg_stat_activity, ideally with something like pg_wait_sampling), pg_locks, etc. </p>
+                    <p>Splitting analysis to these two levels help us understand what to do and when. And it has simple analogy: macroeconomics studying global market behavior and microeconomics studying behavior of individual actors.</p>
+                    <p>Good question is how to avoid gaps in analysis/optimization workflows and transition between levels easier. This area definitely requires certain efforts, especially in larger orgs.</p>
+
+                <h3 id="c2">Prepared Statements and unlucky cached custom plan</h3>
+                    <p>An unfavorable custom plan may get cached (the first 5 executions), followed by a generic plan that, according to its average cost estimate, might also be suboptimal. Additionally, prepared statements (PREPARE) can interfere with the use of pgBouncer in transaction pooling mode.</p>
+                    <p>Consider to change parameter <code><a href="https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-PLAN-CACHE-MODE">plan_cache_mode = force_custom_plan</a></code></p>
+                    <p>Use application level poller (like <code><a href="https://github.com/brettwooldridge/HikariCP">HikariCP</a></code>, for example) instead of pgBouncer.</p>
+                
+                <h3 id="c3">Prepared Statements with Partitioned Tables (LockManager waits)</h3>
+                    <p>Detailed explanation with examples is <a href="https://postgres.ai/blog/20251030-postgres-marathon-2-011">here</a>.</p>
+                
+                <h3 id="c4">Inactive Logical Replication Slot problems (catalog_xmin)</h3>
+                    <p>The root cause is that a <b>logical replication slot reserves catalog_xmin</b>, which blocks the autovacuum of the system catalog. In systems with frequent and aggressive autoanalyze, <b>pg_statistic begins to bloat</b>. As a result, <b>query planning degrades</b>.</p>
+                    <p>Solution is to either remove inactive logical slots or reconsider the frequency of autoanalyze execution.</p>
+
+                <h3 id="c5">LWLock:BufferMapping possible reasons</h3>
+                    <p>Good explanation on AWS docs <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwl-buffer-mapping.html">here</a></p>
+                    <p>Common reasons are:
+                        <ul>
+                            <li>Not enough <code>shared_buffers</code>. For example, there might be 10 queries that work fine, but at some point a query arrives that reads many blocks, <b>using an index</b>, which starts to flush the cache. This affects normal queries, causing them to wait on BufferMapping locks</li>
+                            <li>Query <b>plan changed</b> for some reason to a less optimal one, which leads to a greater number of block reads (for example, it switched to a different index or to a sequential scan)</li>
+                            <li>Lack of <b>up-to-date optimizer statistics</b> can prevent an index from being used, for example, <b>on a new partition for the current day</b> (this is especially problematic if auto-vacuum is disabled on partitions and the default mechanism does not work).</li>
+                            <li><b>Load</b> on the database from the application <b>has increased</b> (the number of queries, the volume of data requested).</li>
+                        </ul>
+                    </p>
+
+                <h3 id="c6">Optimizer Statistics on partitioned tables</h3>
+                    <p><a href="https://www.postgresql.org/docs/current/sql-analyze.html#:~:text=The%20autovacuum%20daemon%20does%20not%20process%20partitioned%20tables%2C%20nor%20does%20it%20process%20inheritance%20parents%20if%20only%20the%20children%20are%20ever%20modified.%20It%20is%20usually%20necessary%20to%20periodically%20run%20a%20manual%20ANALYZE%20to%20keep%20the%20statistics%20of%20the%20table%20hierarchy%20up%20to%20date.">Doc</a> says: <i>"The autovacuum daemon does not process partitioned tables, nor does it process inheritance parents if only the children are ever modified. It is usually necessary to periodically run a manual ANALYZE to keep the statistics of the table hierarchy up to date."</i></p>
+
+                <h3 id="c7">Optimizer Statistics problems on newly created table partition</h3>
+                    <p>When a new table partition is created, query performance may be problematic for some time until it is populated with data and a proper ANALYZE is run.</p>
+                    <p>The solution is either to <b>hint critical queries</b> or to <b>manually collect statistics</b> as workaround (e.g., using cron or pg_cron). It is also important to <b>collect statistics for the parent table</b> (see the previous point for the reason why).</p>
+
+                <h3 id="c8">HASH partitioning for distributing write-load</h3>
+                    <p>Need to test.</p>
+                    <p><a href="https://www.shayon.dev/post/2025/221/bypass-postgresql-catalog-overhead-with-direct-partition-hash-calculations/">Interesting tests</a> about partitioning overhead.</p>
+
+                <h3 id="c9">Foreign Keys in PostgreSQL are harmful</h3>
+                    <p>Especially with partitioned tables.</p>
+                    <p>FK can also be a reason of  <b><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwlockbuffercontent.html#:~:text=Excessive%20use%20of%20foreign%20key%20constraints">LWLock:BufferContent</a></b> wait events caused by integrity checks and locks mechanics in Postgres.</p>
+
+                <h3 id="c10">DELETE from one table affects another</h3>
+                    <p>Possible reasons:</p>
+                        <ul>
+                            <li><b>Tables are linked</b>. For example, a foreign key exists, and we want to delete a primary key. In this case, the corresponding rows in the child table must also be deleted if a cascade was defined.</li>
+                            <li>Within a single transaction, a deletion from a small table t1 occurs first, followed by a deletion from a large table t2. <b>Concurrent sessions with same logic (transactions)</b> attempting to start a similar transaction will hang when trying to delete from t1. This happens if the deletion from t1 in the first transaction overlaps with the deletion from t1 in the parallel second transaction (for example, both try to delete rows based on the same condition like date <= now()).</li>
+                        </ul>
+
+                <h3 id="c11">Consider additional abstractions in the database</h3>
+                    <p>Try not to limit yourself to standard methods when solving problems. For example, there is a table with a timestamp column, but the application requires it to be timestamp with time zone (for its own logic, the reason is not important here). To avoid data migration and other complexities, you can simply <b>create a view</b>. However, the optimizer might theoretically behave unpredictably, so you need to carefully analyze the consequences of such a solution (check execution plans, etc.).</p>
+                    <p>How to make a <b>table read-only</b> in Postgres? You can revoke write permissions on it, but you can also create a trigger.</p>
+
             </section>
 
             <section id="sql-tuning" class="post-section">
