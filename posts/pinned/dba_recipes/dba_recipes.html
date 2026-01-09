@@ -34,13 +34,258 @@
             <nav class="table-of-contents">
                 <h2>Table of Contents</h2>
                 <ul>
-                    <li><a href="#part1">Todo</a></li>
+                    <li><a href="#docs">Useful Docs</a></li>
+                    <li>
+                        <a href="https://hakibenita.com/sql-tricks-application-dba">Some SQL Tricks of an Application DBA</a>
+                            <ul>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#update-only-what-needs-updating">Update Only What Needs Updating</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#disable-constraints-and-indexes-during-bulk-loads">Disable Constraints and Indexes During Bulk Loads</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#use-unlogged-tables-for-intermediate-data">Use UNLOGGED Tables for Intermediate Data</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#implement-complete-processes-using-with-and-returning">Implement Complete Processes Using WITH and RETURNING</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#avoid-indexes-on-columns-with-low-selectivity">Avoid Indexes on Columns With Low Selectivity</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#use-partial-indexes">Use Partial Indexes</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#always-load-sorted-data">Always Load Sorted Data</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#index-columns-with-high-correlation-using-brin">Index Columns With High Correlation Using BRIN</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#make-indexes-invisible">Make Indexes "Invisible"</a></li>
+                                <li><a href="https://hakibenita.com/sql-tricks-application-dba#dont-schedule-long-running-processes-at-round-hours">Don't Schedule Long Running Processes at Round Hours</a></li>
+                            </ul>
+                    </li>
+                    <li>
+                        <a href="#common">Common</a>
+                            <ul>
+                                <li><a href="yyy">xxx</a></li>
+                                <li><a href="yyy">xxx</a></li>
+                                <li><a href="yyy">xxx</a></li>
+                            </ul>
+                    </li>
+                    <li>
+                        <a href="#sql-tuning">SQL Tuning Algorithm</a>
+                    	    <ul>
+						    	<li><a href="#st1">I. Initial Assessment / Classification</a></li>
+                                <li><a href="#st2">II. Simple Query</a></li>
+                                <li><a href="#st3">III. Complex Query</a></li>
+                                <li>
+                                    <a href="#st4">IV. Tuning</a>
+                                        <ul>
+                                            <li><a href="#st41">1. Get Query Plan</a></li>
+                                            <li><a href="#st42">2. Analyze Query Plan</a></li>
+                                            <li><a href="#st43">3. Analyze Query Objects</a></li>
+                                            <li>
+                                                <a href="#st44">4. Common Strategies</a>
+                                                    <ul>
+                                                        <li><a href="#st441">ANALYZE VERBOSE</a></li>
+                                                        <li><a href="#st442">VACUUM VERBOSE</a></li>
+                                                        <li><a href="#st443">Indexes for Filter Conditions (Partial Indexes / Covering Indexes / Multicolumn Indexes)</a></li>
+                                                        <li><a href="#st444">Indexes for Join Columns</a></li>
+                                                        <li><a href="#st445">Indexes for Sort/Order By Columns</a></li>
+                                                        <li><a href="#st446">Indexes for Foreign Keys</a></li>
+                                                        <li><a href="#st447">Index exists but NOT being used (data types mismatch)</a></li>
+                                                        <li><a href="#st448">Partition Pruning</a></li>
+                                                        <li><a href="#st449">Global Indexes</a></li>
+                                                    </ul>
+                                            </li>
+                                            <li>
+                                                <a href="#st45">5. Non-standard Strategies</a>
+                                                    <ul>
+                                                        <li><a href="#st451">Alternative Index Types</a></li>
+                                                        <li><a href="#st452">Functional Indexes</a></li>
+                                                        <li><a href="#st453">Disable Parallelism</a></li>
+                                                        <li><a href="#st454">Disable JIT</a></li>
+                                                        <li><a href="#st455">Try to use Hints</a></li>
+                                                        <li><a href="#st456">Manual adjustment of Column Statistics</a></li>
+                                                        <li><a href="#st457">Extended Statistics</a></li>
+                                                        <li><a href="#st458">Table Reorganisation</a></li>
+                                                    </ul>
+                                            </li>
+                                            <li><a href="#st46">6. Rewrite Query</a></li>
+                                            <li><a href="#st47">7. Review the business logic of the query</a></li>
+                                        </ul>
+                                </li>
+						    </ul>
+                    </li>
                 </ul>
             </nav>
 
-            <section id="part1" class="post-section">
-                <h2>ToDo</h2>
+            <section id="docs" class="post-section">
+                <h2>Useful Docs</h2>
+				<ul class="specs-list">
+					<li><a href="https://hakibenita.com/sql-tricks-application-dba">Some SQL Tricks of an Application DBA</a></li>
+                    <li><a href="https://habr.com/ru/companies/tensor/articles/968720/">Habr PostgreSQL Antipatterns</a></li>
+                    <li><a href="https://pgconf.ru/talk/1620149">PGConf - Оптимизация OLTP-нагрузки</a></li>
+                    <li><a href="https://pgconf.ru/talk/1700782">PGConf - Инструменты диагностики и примеры оптимизации запросов</a></li>
+                    <li><a href="https://pgconf.ru/talk/2034067">PGConf - Примеры оптимизации запросов, часть 2</a></li>
+                    <li><a href="https://pgconf.ru/talk/1622277">PGConf - Перепланирование безнадежных запросов в реальном времени</a></li>
+                    <li><a href="https://rutube.ru/video/320c4e972c39c217d2e6eb92e3e3bd2f/?r=wd">PGConf - Дело о пропавшей производительности в PostgreSQL: руководство по поимке и обезвреживанию проблемных запросов</a></li>
+                    <li><a href="https://youtu.be/c2a5EQ_2G58">Неклассические техники оптимизации запросов в PostgreSQL</a></li>
+                </ul>
+            </section>
+
+            <section id="common" class="post-section">
+                <h2>Common</h2>
                 <p>ToDo</p>
+            </section>
+
+            <section id="sql-tuning" class="post-section">
+                <h2>SQL Tuning Algorithm</h2>
+                
+                <h3 id="st1"><u>I. Initial Assessment / Classification</u></h3>
+                    <p>Begin by reviewing the query from a high-level perspective and intuitively evaluating it (consider its length, complexity, number of tables involved, etc.).</p>
+                    <p>Based on this initial impression, proceed with the following steps.</p>
+            
+                <h3 id="st2"><u>II. Simple Query</u></h3>
+                    <p>If the query is "simple" and easy to understand mentally - try to describe the problem it is solving in simple terms.</p>
+                    <p>Then follow the steps in the "Tuning" section.</p>
+            
+                <h3 id="st3"><u>III. Complex Query</u></h3>
+                    <p>By "complex" I mean query with lot of tables involved, joins, sub-queries, procedure calls, complex filters, some internal logic, unions, etc.</p>
+                    <p><b><i>Key approach here is to split original query into smaller pieces and try to understand and tune each of them one by one.</i></b></p>
+                    <p>Use AI to format it and ask it to "break it down" and explain the meaning in natural language.</p>
+            
+                <h3 id="st4"><u>IV. Tuning</u></h3>
+                    <h4 id="st41"><i>1. Get Query Plan</i></h4>
+                        <p>Use <a href="https://www.postgresql.org/docs/current/sql-explain.html"><code>EXPLAIN</code></a> to get the optimizer's estimation about query plan. <b>Note that the actual execution plan may differ from this estimate.</b></p>
+                        <p>For a more accurate analysis, it's better to use <a href="https://www.postgresql.org/docs/current/sql-explain.html#:~:text=Carry%20out%20the%20command%20and%20show%20actual%20run%20times%20and%20other%20statistics.%20This%20parameter%20defaults%20to%20FALSE."><code>EXPLAIN (ANALYZE, BUFFERS)</code></a>. This command provides the actual execution plan along with detailed runtime statistics. However, be aware that <b>this command actually executes the query. So this can be dangerous for data-modifying statements (delete/update/insert).</b></p>
+                        <p>If you want to get actual query plan of <code>DELETE</code> statement for example, then you can use below approach:</p>
+                            <div class="code-block">
+                                <span class="code-language">SQL</span>
+                                <pre><code>BEGIN;
+EXPLAIN (ANALYZE, BUFFERS) DELETE ...
+ROLLBACK;</code></pre>
+                            </div>
+
+                        <p>Crucial caveat - even though the transaction is rolled back, Postgres physically performs the deletion (data block changes) during the <code>EXPLAIN (ANALYZE, BUFFERS) DELETE ...</code> execution. The changes are simply not committed and are invisible to other sessions.</p>
+                        <p>If you don't have an opportunity to run <code>EXPLAIN (ANALYZE, BUFFERS)</code> for some reason, maybe you have <a href="https://ossc-db.github.io/pg_store_plans/">pg_store_plans</a> extension installed. If so - use it to get query plan.</p>
+                        <p>As an alternative to <a href="https://ossc-db.github.io/pg_store_plans/">pg_store_plans</a> you can configure the <a href="https://www.postgresql.org/docs/current/auto-explain.html">auto_explain</a> module to automatically log execution plans for long-running queries.</p>
+            
+                    <h4 id="st42"><i>2. Analyze Query Plan</i></h4>
+                        <p>Focus on the plan nodes that:</p>
+						<ul class="specs-list">
+							<li>Consume the most <b>execution time</b></li>
+							<li>Perform the highest <b>number of buffer reads</b></li>
+                            <li>Compare the <b>actual and estimated row</b> counts. A  large difference between these values often leads to a suboptimal execution plan, frequently due to outdated statistics</li>
+                            <li>Planning time</li>
+                            <li>Temporary files written</li>
+                            <li>SeqScan's on large tables</li>
+                            <li>Conditions are pushed down and appear in the IndexCond</li>
+                            <li>Join order and methods</li>
+						</ul>
+                        <p>Use <a href="https://explain.tensor.ru/">Tenzor</a> to visualize query plan.</p>
+            
+                    <h4 id="st43"><i>3. Analyze Query Objects</i></h4>
+                        <p>If your plan analysis reveals an obvious bottleneck node(s) where most of the work is done, focus on optimizing it first.</p>
+                        <p>Review query objects:</p>
+						<ul class="specs-list">
+							<li>Get <b>list</b> of all tables</li>
+							<li>Get table <b>DDL</b> (columns, indexes, partition key, partition rule, foreign keys, constraints, triggers, etc)</li>
+                            <li>Get <b>size</b> of all tables (table size, index size, toast size)</li>
+                            <li>Get info about table/index <b>bloat</b>. <i>This is especially useful when a plan contains an IndexOnlyScan node that performs a large number of HeapFetches. In such cases, the overhead of these fetches can make it slower than a regular IndexScan. Details are <a href="https://habr.com/ru/companies/tensor/articles/751458/">here</a></i></li>
+                            <li>Get info about <b>last vacuum/analyze operations time</b>, number of dead rows and its ratio, custom vacuum/analyze settings if any</li>
+                            <li>Get <b>optimizer stats</b> (<a href="https://www.postgresql.org/docs/current/view-pg-stats.html">pg_stats</a>) about columns used in query filter (<code>WHERE</code> clause) to understand selectivity of these fields.</li>
+						</ul>
+            
+                    <h4 id="st44"><i>4. Common Strategies</i></h4>
+						<ul class="specs-list">
+							<li id="st441">Run <a href="https://www.postgresql.org/docs/current/sql-analyze.html"><code>ANALYZE VERBOSE</code></a> on problematic tables. This is a fast operation and can be sufficient for the optimizer to choose a better plan. For partitioned tables, ensure you collect statistics not only for the specific partition but also for the parent table. Statistics are <a href="https://www.postgresql.org/docs/current/sql-analyze.html#:~:text=The%20autovacuum%20daemon%20does%20not%20process%20partitioned%20tables%2C%20nor%20does%20it%20process%20inheritance%20parents%20if%20only%20the%20children%20are%20ever%20modified.%20It%20is%20usually%20necessary%20to%20periodically%20run%20a%20manual%20ANALYZE%20to%20keep%20the%20statistics%20of%20the%20table%20hierarchy%20up%20to%20date.">not collected for the parent by default</a>, and updating them can significantly improve the optimizer's planning decisions.</li>
+                            <li id="st442">Run <a href="https://www.postgresql.org/docs/current/sql-vacuum.html"><code>VACUUM VERBOSE</code></a> on problematic tables. This process takes longer but can be equally crucial for optimizer decisions. There are some important considerations before running</li>
+								<ul class="specs-sublist">
+									<li><b>WAL Generation:</b>  If VACUUM hasn't run for a long time, then it can generate a significant volume of Write-Ahead Log (WAL). Monitor your WAL generation rates.</li>
+									<li><b>Long-running Transactions:</b> Check for sessions in the idle in transaction state with non-NULL backend_xid or backend_xmin values. These sessions hold back the transaction ID horizon, preventing VACUUM from reclaiming all dead tuples.</li>
+									<li><b>Table Truncation Lock:</b> In some cases, it may be beneficial to disable the truncation phase by setting vacuum_truncate = off. This prevents VACUUM from attempting to truncate the empty space at the end of the table file, which requires a brief ACCESS EXCLUSIVE lock. This lock can disrupt application operations under load.</li>
+								</ul>
+                            <li id="st443"><b>Indexes</b> for <i>Filter Conditions (Partial Indexes / Covering Indexes / Multicolumn Indexes)</i></li>
+                                <p>Verify that indexes exist for the columns used in the query's filter conditions (WHERE clause). Assess their effectiveness (<b>selectivity</b>) using the statistics previously gathered from pg_stats.</p>
+                                <p>Ensure that all filter conditions are <b>pushed down</b> and appear in the <b>IndexCond</b> section of the EXPLAIN output. If a condition is not pushed down, the optimizer has deemed it ineffective for some reason. In such cases, you may need to try specific techniques or workarounds to improve index usage.</p>
+                                <p>Sometimes you might have the correct index, but the query plan shows a full index scan repeated multiple times. For example, consider a composite index that includes a nullable status column, while your query filters for <code>status IS NOT NULL</code>. In this scenario, it might be beneficial to create a <b>partial index</b> (e.g., <code>CREATE INDEX ... WHERE status IS NOT NULL</code>).</p>
+                                <p>About Covering Indexes and Index Only Scan read <a href="https://www.postgresql.org/docs/current/indexes-index-only-scans.html">here</a> and <a href="https://habr.com/ru/companies/tensor/articles/751458/">here</a>.</p>
+                                <p>About Multicolumn Indexes read <a href="https://www.postgresql.org/docs/current/indexes-multicolumn.html">here</a>.</p>
+                            <li id="st444"><b>Indexes</b> for <i>Join Columns</i></li>
+                                <p>Check for the presence of indexes on the columns used to join tables (<b>join condition</b>). Additionally, evaluate the <b>join order</b> - specifically, determine which table acts as the <b>outer loop</b> (in a nested loop join) and which serves as the <b>inner loop</b>. This understanding is crucial for assessing whether the correct indexes (and join methods) are being used to drive the join efficiently.</p>
+                            <li id="st445"><b>Indexes</b> for <i>Sort/Order By Columns</i></li>
+                                <p>Verify the existence of indexes on the columns used for sorting (<code>ORDER BY</code>).</p>
+                                <p>The goal is to leverage an index scan to <b>retrieve data in the required order directly</b>, thereby eliminating a separate, costly <b>Sort</b> operation from the execution plan. When reading from an index that matches the sort order, the data is already ordered.</p>
+                                <p><b>However, there are important details/caveats to consider</b>. Let's take the following filter as an example:</p>
+                                <p><code>... WHERE kind = 10 AND home = 38 ORDER BY code DESC;</code></p>
+                                <p>The <code>code</code> field is not used in the filter, but it is part of the <code>ORDER BY</code> clause. If a large number of rows is selected, the optimizer may consider a separate <b>Sort</b> node in the plan to be expensive.</p>
+                                <p>In this case, if a suitable index exists, the optimizer can use it to read the rows in the required sorted order directly, avoiding the sort operation.</p>
+                                <p>For the example above, an index on the following columns would be appropriate:</p>
+                                <p><code>(home, kind, code DESC)</code></p>
+                                <p>Adding <code>DESC</code> is not strictly mandatory (the optimizer can perform a <i>Backward Index Scan</i>), but it is recommended to specify the sort direction explicitly for clarity and optimal planning.</p>
+                                <p>However, the <code>code</code> column <b>cannot always be placed last</b> in the index. Sometimes, to force the use of the index for sorting, you must move it to the <b>first position</b> (or at least to a position that is <b>not the last</b>).</p>
+                                <p>This is valid for cases where the condition on a preceding column (like <code>home</code>) can have multiple values. For example:</p>
+                                <p><code>... WHERE kind = 10 AND home IN (38, 39) ORDER BY code DESC;</code></p>
+                                <p>In this query, <code>home</code> is matched against a list of values (<code>IN</code> clause). An index on <code>(home, kind, code DESC)</code> would provide the correct order <b>only within each specific value of</b> <code>home</code>. Since we are selecting <b>multiple distinct values</b> for <code>home</code> (38 and 39), the rows for <code>home = 38</code> and <code>home = 39</code> will be read from the index in separate groups, each internally sorted by <code>code</code>. However, the <b>overall result set</b> (combining both groups) would still require a merge or a final sort to satisfy the global <code>ORDER BY code DESC</code>.</p>
+                                <p>In this case, the optimizer <b>will NOT</b> be able to use an index of the form <code>(home, kind, code DESC)</code> for sorting. This is because the index would need to traverse two sub-trees (one for each value of <code>home</code>), and it is NOT guaranteed that <code>code</code> values are non-repeating within each sub-tree (unless it is the primary key or has a uniqueness constraint?). Example:</p>
+                                <p><code>38-10-123</code></p>
+                                <p><code>38-10-456</code></p>
+                                <p><code>39-10-123 <<< <i>duplicate value appearing after the 456 entry means you cannot rely on the index to guarantee the correct global sort order under these conditions.</i></code></p>
+                                <p>To make it possible, you need following index:</p>
+                                <p><code>(kind, code DESC, home)</code></p>
+                                <p>If the filter contains multiple values for <code>kind</code> too:</p>
+                                <p><code>... WHERE kind IN (10, 11) AND home IN (38, 39) ORDER BY code DESC;</code></p>
+                                <p>In that case, it must be moved to the first position entirely:</p>
+                                <p><code>(code DESC, kind, home)</code></p>
+                                <p>In this case, the optimizer will likely determine that it is cheaper to read the entire index in the order specified by the <code>ORDER BY</code> clause, rather than reading all the data and then sorting it with a separate <b>Sort</b> node in the plan.</p>
+                            <li id="st446"><b>Indexes</b> for <i>Foreign Keys</i></li>
+                                <p>If foreign key columns are not indexed, <code>INSERT</code> and <code>UPDATE</code> operations may experience slowdowns during referential integrity checks. This happens because the database needs to verify the existence of the corresponding value in the parent table, and without an index on the referenced column, this check requires a full table scan, which is inefficient.</p>
+                            <li id="st447"><b>Index exists</b> but <i>NOT being used (data types mismatch)</i></li>
+                                <p>One of the reason may be an <b>incorrect data type passed from the application</b>. As a result, PostgreSQL has to perform an implicit type conversion and cannot utilize the index.</p>
+                                <p>Below is a mapping of PostgreSQL types to Java types:</p>
+                                    <div class="image-container">
+                                        <img src="images/pg2java_data_types.png" class="blog-image">
+                                    </div>
+                            <li id="st448"><b>Partition Pruning</b></i></li>
+                                <p>If the table is partitioned, verify that <b>partition pruning</b> is working and that the query filter includes the correct predicate to "drill down" into the required partition.</p>
+                            <li id="st449"><b>Global Indexes</b></i></li>
+                                <p>If it is found that partition pruning is not working because the partition key is not provided as a predicate in the query, consider creating a <b>global index</b>. This feature is supported by some commercial PostgreSQL forks but is not yet available in the vanilla (community) version.</p>
+                        </ul>
+            
+                    <h4 id="st45"><i>5. Non-standard Strategies</i></h4>
+						<ul class="specs-list">
+							<li id="st451"><b>Alternative</b> <i>Index Types</i></li>
+                                <p>This includes not only standard B-tree indexes with additional operator classes (such as <code>varchar_pattern_ops</code> or <code>text_pattern_ops</code> for <code>LIKE</code> pattern matching) but also other specialized index types like <b>Hash, GIN, BRIN</b>, and others.</p>
+							<li id="st452"><b>Functional</b> <i>Indexes</i></li>
+                                <p><a href="https://www.postgresql.org/docs/current/indexes-expressional.html">Docs about indexes on expressions</a></p>
+                            <li id="st453"><b>Disable</b> <i>Parallelism</i></li>
+                                <p>In some situations, it has been observed that <b>disabling parallelism</b> (for example, using the hint <a href="https://pg-hint-plan.readthedocs.io/en/latest/hint_list.html#:~:text=Set(GUC%2Dparam%20value)"><code>/*+ Set(max_parallel_workers_per_gather 0) */</code></a>) can speed up a query on an overloaded server. This is because it avoids the overhead of forking and managing additional worker processes.</p>
+                            <li id="st454"><b>Disable</b> <i>JIT</i></li>
+                                <p>For OLTP workload JIT should be disabled (usually). If the execution plan includes JIT (Just-In-Time) compilation, try disabling it. This can sometimes help and save resources.</p>
+                                <p>More info: <a href="https://postgrespro.ru/docs/postgresql/current/jit-reason">one</a>, <a href="https://postgrespro.ru/docs/postgresql/current/jit-decision">two</a>, <a href="https://habr.com/ru/companies/haulmont/articles/589775/">three</a>.</p>
+                            <li id="st455"><b>Try to use</b> <i>Hints</i></li>
+                                <p>In some cases, running <code>ANALYZE</code> or <code>VACUUM</code> does not improve the optimizer's plan (due to bugs, for example). However, if we "know" that a specific index or join method would be more efficient, we can use the <a href="https://pg-hint-plan.readthedocs.io/en/latest/hint_list.html">pg_hint_plan</a> extension and its hints.</p>
+                                <p>I would pay special attention to the <a href="https://pg-hint-plan.readthedocs.io/en/latest/hint_list.html#:~:text=Set(GUC%2Dparam%20value)">Set</a> hint. It allows you to manipulate various PostgreSQL parameters, such as parallelism (as shown earlier) or enabling/disabling specific join methods (enable_hashjoin, for example) and scan types (enable_seqscan and others).</p>
+                                <p>In specific cases where modifying the query with hints is not feasible (for example, due to a long application deployment cycle while an urgent fix is needed), you can use the <a href="https://pangolin.sbertech.ru/center/docs/7/extensions/pg_outline?utm_referrer=https%3A%2F%2Fwww.google.com%2F">pg_outline</a> extension. This tool allows you to inject a hint into a specific query without making any changes to the application code.</p>
+                            <li id="st456"><b>Manual adjustment of</b> <i>Column Statistics</i></li>
+                                <p>Ther problem often lies in the incorrect selectivity estimation of a predicate in the query. The reason is usually incorrent (unlucky) statistics on large tables, combined with the value of the <code>default_statistics_target</code> parameter. Increasing this target in OLTP systems doesn't yield significant benefits - it results in more statistics being collected (taking longer) and can also slow down the planner's work.</p>
+                                <p>Solution is to analyze the actual predicate selectivity, compare it with the optimizer's estimate (<code>pg_stats.n_distinct</code>), and manually adjust it using <code>ALTER TABLE ... ALTER COLUMN ... SET (n_distinct = -0.05)</code> - for a predicate with an average uniqueness of 5% of the total rows - <b>followed by running ANALYZE</b>.</p>
+                            <li id="st457"><b>Extended</b> <i>Statistics</i></li>
+                                <p>If you have a strong understanding that a specific <b>combination of columns</b> results in a small result set (high correlation), it's advisable to <b>create extended statistics</b> on those columns. This informs the optimizer about the correlation, as by default it simply multiplies the individual filter estimates, which can lead to a <b>greatly overestimated row count</b>. Such an overestimation can cause the optimizer to choose a less efficient execution plan.</p>
+                                <p>More info <a href="https://postgrespro.ru/docs/postgresql/current/sql-createstatistics">here</a> and <a href="https://habr.com/ru/companies/skillfactory/articles/574078/">here</a>.</p>
+                            <li id="st458"><b>Table</b> <i>Reorganisation</i></li>
+                                <p>This is a fairly "expensive" approach, which in most cases will cause downtime. Example: partitioning, clustering based on index, data type changes, normalizing to eliminate redundant data storage or conversely - denormalization, etc. </p>
+                        </ul>
+
+                    <h4 id="st46"><i>6. Rewrite Query</i></h4>
+                        <p>PostgreSQL Optimizer can be quite unpredictable, and its behavior can be affected by almost anything - even a simple reordering of columns in the <code>WHERE</code> clause, let alone in the <code>ORDER BY</code> section.</p>
+                        <p>As a DBA, here are some options you can try without deeply understanding the business logic of the query:</p>
+						<ul class="specs-list">
+							<li>Add or remove the <code>ORDER BY</code> clause to force the use of a specific index or to avoid an extra <b>Sort</b> node in the plan, instead reading data directly from the index in the required sorted order.</li>
+                            <li>"Disable" index by adding some calculation like <code>... WHERE id + 0 = 123;</code></li>
+                            <li>Split the query into two parts and combine them using <code>UNION ALL</code>.</li>
+                            <li>Try to use a <b>CTE</b> (Common Table Expression) to analyze what is being joined with what and in which order. It may be more efficient to join different tables first, as this could reduce the result set early on. For more details about <a href="https://habr.com/ru/companies/tensor/articles/574330/">CTE</a>, about <a href="https://www.postgresql.org/docs/current/queries-with.html#QUERIES-WITH-CTE-MATERIALIZATION">materialization</a>.</li>
+                            <li>Try to use <b>Hints</b> as mentioned earlier.</li>
+                            <li>Try to use <b>EXISTS</b> instead of <b>IN</b> in case of sub-queries.</li>
+                            <li><b>Redundant</b> joins</li>
+                                <p>Sometimes your query may contain "redundant" joins that can be eliminated. For example, you are joining three tables: a, b, and c. Table a is joined to b on a.id = b.a_id, and then b is joined to c on b.code = c.b_code. In other words, you reach table c through b.</p>
+                                <p>However, it might turn out that table a has a field that allows a direct join to table c (for example, a.a_code = c.c_code). In this case, you need to be confident that such a join is semantically valid and that fields from table b are not required in the final result set.</p>
+                            <li>Try to use <b>ANY</b> instead of <b>IN</b> in case of large number of parameter values passed to a query. Check <a href="https://pganalyze.com/blog/5mins-postgres-performance-in-lists-vs-any-operator-bind-parameters">one</a>, <a href="https://blog.jooq.org/sql-in-predicate-with-in-list-or-with-array-which-is-faster/">two</a>.</li>
+                            <li>In queries, you often encounter filters like <code>create_date >= now()</code> or <code>create_date < now()</code>. This is problematic for two reasons. </li>
+                                <p>First, if the table is partitioned, then non-deterministic function now() forces the planner to <b>acquire locks on all partitions and their indexes</b> during planning, which can cause contention (<b>LockManager</b> wait events).</p>
+                                <p>Second, with active table operations (like UPDATEs), such a filter causes significant <b>index fragmentation</b>. To mitigate this, use a specific range: <code>create_date BETWEEN 'xxx' AND 'yyy'</code>. This likely requires application changes to somehow "remember" or cache the range boundary and periodically update it (e.g., by running a query like <code>SELECT min(create_date) ...</code>). This approach compensates for index degradation over time.</p>
+                        </ul>
+
+                    <h4 id="st47"><i>7. Review the business logic of the query</i></h4>
+                        <p>If none of the above methods have helped resolve the issue, it's time to ask: Is the exact amount of data requested by this query truly necessary? This requires in-depth work with analysts and developers. It may turn out that this information is no longer needed at all, can be obtained in another way, or can be retrieved for a shorter time period (e.g., not for the last year, but for the last month, which would significantly reduce the dataset).</p>
+
             </section>
 
             <div class="back-to-top">
