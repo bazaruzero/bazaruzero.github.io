@@ -53,7 +53,8 @@
                     <li>
                         <a href="#common">Common</a>
                             <ul>
-                                <li><a href="#c1">Optimization approach by Nikolay Samokhvalov</a></li>
+                                <li><a href="#c0">Optimization approach by Nikolay Samokhvalov</a></li>
+                                <li><a href="#c1">Ultimate Optimization Algorithm by Henrietta Dombrovskaya, Boris Novikov, Anna Bailliekova</a></li>
                                 <li><a href="#c2">Prepared Statements and unlucky cached custom plan</a></li>
                                 <li><a href="#c3">Prepared Statements with Partitioned Tables (LockManager waits)</a></li>
                                 <li><a href="https://postgrespro.ru/list/id/CAJrrPGeQ-oQdEHUHyB9xYaF0Da5YOPYbsGcH5hN2RaSkmFscfA@mail.gmail.com">Query is executed slower on hot standby slave databasethen on master database</a></li>
@@ -133,7 +134,7 @@
             <section id="common" class="post-section">
                 <h2>Common</h2>
                 
-                <h3 id="c1">Optimization approach by Nikolay Samokhvalov</h3>
+                <h3 id="c0">Optimization approach by Nikolay Samokhvalov</h3>
                     <p>Two levels of query analysis: <i>"micro"</i> and <i>"macro"</i> (<a href="https://x.com/samokhvalov/status/1815927716413423988">source</a>).</p>
                     <p><b>Micro level</b> - the analysis of a single query planning and execution. The main tool here is <code>EXPLAIN (ANALYZE, BUFFERS)</code>. Goals: understand planner's decisions, find suboptimal behavior and optimization opportunities. <b>Planner behavior depends on two inputs only: statistics (data volumes and distribution) and Postgres settings</b>. That's it. Real physical resources don't matter for the planner, it doesn't know how much RAM you have or how fast the disks are.</p>
                     <p><b>Macro level</b> — the analysis of complex workloads, behaviors of multiple sessions, and the database system as whole, with all its components participating in query processing such as buffer pool, lock manager, checkpointer. <b>Tools</b>: pg_stat_statements, logs, wait event analysis (sampling of pg_stat_activity, ideally with something like pg_wait_sampling), pg_locks, etc. </p>
