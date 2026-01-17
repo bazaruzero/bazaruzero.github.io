@@ -76,6 +76,7 @@
                             <li><a href="#pg-workers-params">Postgres Workers Parameters</a></li>
                             <li><a href="#parallel-idx-creation">Parallel Index Creation</a></li>
                             <li><a href="#pg2java-data-types-map">Postgres to Java Data types mapping</a></li>
+                            <li><a href="#kill-sess">Query to Kill Multiple Sessions</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -748,6 +749,26 @@ ALTER TABLE mytable RESET (parallel_workers);</code></pre>
                 <h3 id="pg2java-data-types-map">Postgres to Java Data types mapping</h3>
                 <div class="image-container">
                     <img src="images/pg2java_data_types.png" class="blog-image">
+                </div>
+
+                <h3 id="kill-sess">Query to Kill Multiple Sessions</h3>
+                <p>Check:</p>
+                <div class="code-block">
+                    <span class="code-language">SQL</span>
+                    <pre><code>SELECT datname, pid, usename, state, wait_event_type||':'||wait_event as we, substr(query,1,100)
+FROM pg_stat_activity
+WHERE pid <> pg_backend_pid()
+AND usename LIKE 'apps%'
+--AND now() - query_start > INTERVAL '5 minutes';</code></pre>
+                </div>
+                <p>Kill:</p>
+                <div class="code-block">
+                    <span class="code-language">SQL</span>
+                    <pre><code>SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE pid <> pg_backend_pid()
+AND usename LIKE 'apps%'
+--AND now() - query_start > INTERVAL '5 minutes';</code></pre>
                 </div>
 
             </section>
