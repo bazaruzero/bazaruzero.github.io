@@ -354,6 +354,42 @@ ROLLBACK;</code></pre>
                             <li>In queries, you often encounter filters like <code>create_date >= now()</code> or <code>create_date < now()</code>. This is problematic for two reasons. </li>
                                 <p>First, if the table is partitioned, then non-deterministic function now() forces the planner to <b>acquire locks on all partitions and their indexes</b> during planning, which can cause contention (<b>LockManager</b> wait events).</p>
                                 <p>Second, with active table operations (like UPDATEs), such a filter causes significant <b>index fragmentation</b>. To mitigate this, use a specific range: <code>create_date BETWEEN 'xxx' AND 'yyy'</code>. This likely requires application changes to somehow "remember" or cache the range boundary and periodically update it (e.g., by running a query like <code>SELECT min(create_date) ...</code>). This approach compensates for index degradation over time.</p>
+                            <li>Try <b>COUNT(x)</b> or <b>LEFT JOINT</b> instead of <b>NOT EXISTS</b></li>
+                                <p>Original query:</p>
+                                    <div class="code-block">
+                                        <span class="code-language">SQL</span>
+                                        <pre><code>SELECT a.*
+FROM table_a a
+WHERE NOT EXISTS (
+    SELECT 1 
+    FROM table_b b 
+    WHERE b.id = a.id 
+      AND b.add_id = a.add_id
+);</code></pre>
+                                    </div>
+                                <p>Alternative with LEFT JOIN:</p>
+                                    <div class="code-block">
+                                        <span class="code-language">SQL</span>
+                                        <pre><code>SELECT a.*
+FROM table_a a
+LEFT JOIN table_b b 
+    ON a.id = b.id 
+    AND a.add_id = b.add_id
+WHERE b.id IS NULL;</code></pre>
+                                    </div>
+                                <p>Alternative with COUNT(x):</p>
+                                    <div class="code-block">
+                                        <span class="code-language">SQL</span>
+                                        <pre><code>SELECT a.*
+FROM table_a a
+WHERE (
+    SELECT COUNT(*) 
+    FROM table_b b 
+    WHERE b.id = a.id 
+      AND b.add_id = a.add_id
+) = 0;</code></pre>
+                                    </div>
+                                <p>Sometimes it can help, especially in cases where the <b>second condition is, for some reason, NOT pushed down</b> into the <code>IndexCond</code> node in the query execution plan. </p>
                         </ul>
 
                     <h4 id="st47"><i>7. Review the business logic of the query</i></h4>
