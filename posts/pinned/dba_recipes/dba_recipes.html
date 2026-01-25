@@ -390,6 +390,8 @@ WHERE (
 ) = 0;</code></pre>
                                     </div>
                                 <p>Sometimes it can help, especially in cases where the <b>second condition is, for some reason, NOT pushed down</b> into the <code>IndexCond</code> node in the query execution plan. </p>
+                        
+                            <li>Try to use <b>SRF (Set Returning Functions)</b> instead of <b>VIEWs</b> in case of complex queries to avoid issues where predicates are not pushed down into the view.</li>
                         </ul>
 
                     <h4 id="st47"><i>7. Review the business logic of the query</i></h4>
