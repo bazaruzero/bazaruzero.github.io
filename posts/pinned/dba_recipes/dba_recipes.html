@@ -178,7 +178,7 @@
                     <p>The solution is either to <b>hint critical queries</b> or to <b>manually collect statistics</b> as workaround (e.g., using cron or pg_cron). It is also important to <b>collect statistics for the parent table</b> (see the previous point for the reason why).</p>
 
                 <h3 id="c8">HASH partitioning for distributing write-load</h3>
-                    <p>Need to test.</p>
+                    <p>In the case of an append-only table under very high load, you may encounter wait events like <code>IO:DataFileExtend</code> combined with <code><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/apg-waits.lockextend.html">LWLock:extend</a></code>. In such situations, it is recommended to hash-partition the table to distribute the load and minimize these wait events.</p>
                     <p><a href="https://www.shayon.dev/post/2025/221/bypass-postgresql-catalog-overhead-with-direct-partition-hash-calculations/">Interesting tests</a> about partitioning overhead.</p>
 
                 <h3 id="c9">Foreign Keys in PostgreSQL are harmful</h3>
