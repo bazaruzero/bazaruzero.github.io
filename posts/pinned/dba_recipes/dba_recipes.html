@@ -66,6 +66,7 @@
                                 <li><a href="#c9">Foreign Keys in PostgreSQL are harmful</a></li>
                                 <li><a href="#c10">DELETE from one table affects another</a></li>
                                 <li><a href="#c11">Consider additional abstractions in the database</a></li>
+                                <li><a href="#c12">About UUID</a></li>
                             </ul>
                     </li>
                     <li>
@@ -196,6 +197,11 @@
                 <h3 id="c11">Consider additional abstractions in the database</h3>
                     <p>Try not to limit yourself to standard methods when solving problems. For example, there is a table with a timestamp column, but the application requires it to be timestamp with time zone (for its own logic, the reason is not important here). To avoid data migration and other complexities, you can simply <b>create a view</b>. However, the optimizer might theoretically behave unpredictably, so you need to carefully analyze the consequences of such a solution (check execution plans, etc.).</p>
                     <p>How to make a <b>table read-only</b> in Postgres? You can revoke write permissions on it, but you can also create a trigger.</p>
+
+                <h3 id="c12">About UUID</h3>
+                    <p>In short, due to their random nature, UUIDs can cause a large number of blocks to be read. This happens because the logical order of values in the index does not match (or correlates poorly with) the physical order in the table (<a href="https://www.postgresql.org/docs/current/view-pg-stats.html#:~:text=the%20entire%20population.)-,correlation,-float4">pg_stats.correlation</a>)</p>
+                    <p>Details: <a href="https://andyatkinson.com/avoid-uuid-version-4-primary-keys">one</a>, <a href="https://www.cybertec-postgresql.com/en/unexpected-downsides-of-uuid-keys-in-postgresql/">two</a>, <a href="https://habr.com/ru/companies/tensor/articles/989032/">three</a>.</p>
+
 
             </section>
 
