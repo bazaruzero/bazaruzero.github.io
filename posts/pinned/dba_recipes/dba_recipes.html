@@ -167,6 +167,7 @@
                             <li>Query <b>plan changed</b> for some reason to a less optimal one, which leads to a greater number of block reads (for example, it switched to a different index or to a sequential scan)</li>
                             <li>Lack of <b>up-to-date optimizer statistics</b> can prevent an index from being used, for example, <b>on a new partition for the current day</b> (this is especially problematic if auto-vacuum is disabled on partitions and the default mechanism does not work).</li>
                             <li><b>Load</b> on the database from the application <b>has increased</b> (the number of queries, the volume of data requested).</li>
+                            <li><b>Long-running transaction or query (or queries)</b> is holding the database transaction horizon, preventing the autovacuum and <a href="https://habr.com/ru/companies/tantor/articles/916318/">HOT-cleanup</a> from running. This can cause other queries (especially those on "queue" type tables) to read a larger number of blocks due to the presence of dead tuples, potentially leading to LWLock:BufferMapping wait events.</li>
                         </ul>
                     </p>
 
