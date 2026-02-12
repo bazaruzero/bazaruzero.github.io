@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBA Notes - Secure Patroni API</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <h1><a href="../../index.html">DBA Notes</a></h1>
+        <a href="https://github.com/bazaruzero" class="github-link" target="_blank" 
+           rel="noopener noreferrer" aria-label="GitHub profile">
+            <svg width="32" height="32" viewBox="0 0 98 96" fill="currentColor">
+                <title>GitHub Logo</title>
+                <path d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
+            </svg>
+        </a>
+    </header>
+
+    <nav class="categories" aria-label="Blog categories">
+        <a href="../../categories/postgresql.html">PostgreSQL</a>
+        <a href="../../categories/oracle.html">Oracle</a>
+        <a href="../../categories/tools.html">Tools</a>
+        <a href="../../categories/theory_and_experiments.html">T&E</a>
+        <a href="../../categories/misc.html">Misc</a>
+        <a href="../../categories/bookmarks.html">Bookmarks</a>
+    </nav>
+
+    <main class="main-content">
+        <article class="blog-post">
+            <h1 class="post-title">Secure Patroni API</h1>
+
+            <section id="part1" class="post-section">
+                <p>Configuration examples on how to protect your cluster Patroni API.</p>
+            </section>            
+
+            <nav class="table-of-contents">
+                <h2>Table of Contents</h2>
+                <ul>
+                    <li><a href="#docs">Docs</a></li>
+                    <li><a href="#testenv">Test environment</a></li>
+                    <li><a href="#patroniapi">About Patroni protection</a></li>
+                    <li><a href="#c1">Case 1</a></li>
+                    <li><a href="#c2">Case 2</a></li>
+                    <li><a href="#c3">Case 3</a></li>
+                    <li><a href="#c4">Case 4</a></li>
+                    <li><a href="#c5">Case 5</a></li>
+                    <li><a href="#c6">Case 6</a></li>
+                    <li><a href="#haproxy">HAProxy config</a></li>
+                    <li><a href="#app">Appendix</a></li>
+                </ul>
+            </nav>
+
+			<section id="docs" class="post-section">
+				<h2>Docs</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li><a href="https://patroni.readthedocs.io/en/latest/security.html">Patroni Documentation - Security Considerations - Protecting the REST API</a></li>
+                        <li><a href="https://www.percona.com/blog/securing-patroni-rest-api-end-points-part-1/">Percona - Securing Patroni REST API End Points - Part 1</a></li>
+                        <li><a href="https://www.percona.com/blog/securing-patroni-rest-api-end-points-part-2-using-ssl-certificates/">Percona - Securing Patroni REST API End Points Part 2: Using SSL Certificates</a></li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="testenv" class="post-section">
+				<h2>Test environment</h2>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ patroni --version
+patroni 2.1.4
+ 
+psql> SELECT version();
+PostgreSQL 12.12 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-44), 64-bit
+ 
+$ patronictl -c /etc/patroni/postgres.yml list
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 69 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 69 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+ 
+$ ETCDCTL_API=3 etcdctl ${ETCD_SSL_ARGS_V3} endpoint status --cluster -w table
+ 
++-----------------------------------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+|                   ENDPOINT                    |        ID        | VERSION | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |
++-----------------------------------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+| https://srv-pg-db01.ru-central1.internal:2379 | 9bf7cf2d10f76057 |   3.5.5 |   20 kB |      true |      false |        43 |     910910 |             910910 |        |
+| https://srv-pg-db02.ru-central1.internal:2379 | a903aa5dd5b48d20 |   3.5.5 |   20 kB |     false |      false |        43 |     910910 |             910910 |        |
+|  https://srv-pg-arb.ru-central1.internal:2379 | f4188b4c8dacdebb |   3.5.5 |   20 kB |     false |      false |        43 |     910911 |             910911 |        |
++-----------------------------------------------+------------------+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="patroniapi" class="post-section">
+				<h2>About Patroni protection</h2>
+				<p>The Patroni REST API is used by Patroni itself during the leader race, by the patronictl tool in order to perform failovers/switchovers/reinitialize/restarts/reloads, by HAProxy or any other kind of load balancer to perform HTTP health checks, and of course could also be used for monitoring.</p>
+                <p>From the point of view of security, REST API contains safe (GET requests, only retrieve information) and unsafe (PUT, POST, PATCH and DELETE requests, change the state of nodes) endpoints.</p>
+                <p>The unsafe endpoints can be protected with HTTP basic-auth by setting the restapi.authentication.username and restapi.authentication.password parameters.</p>
+                <p>There is no way to protect the safe endpoints without enabling TLS.</p>
+			</section>
+
+			<section id="c1" class="post-section">
+				<h2>Case 1</h2>
+                <p>There is no any protection of Safe/Unsafe endpoints.</p>
+                <p>Patroni config file <b>restapi</b> section example:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+restapi:
+    listen: 0.0.0.0:8008
+    connect_address: srv-pg-db01.ru-central1.internal:8008
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="c2" class="post-section">
+				<h2>Case 2</h2>
+                <p>Only Unsafe endpoints are protected by username/password parameters.</p>
+                <p>Patroni config file <b>restapi</b> section example:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+restapi:
+    listen: 0.0.0.0:8008
+    connect_address: srv-pg-db01.ru-central1.internal:8008
+    authentication:
+        username: patroni_api_usr
+        password: Som3P@ssw0rd!23
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="c3" class="post-section">
+				<h2>Case 3</h2>
+                <p>Unsafe endpoints still protected by username/password parameters.</p>
+                <p>Enable SSL between Patroni API server and clients in order to make requests for Safe endpoints more secure.</p>
+                <p>Patroni config file <b>restapi</b> section example:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+restapi:
+    listen: 0.0.0.0:8008
+    connect_address: srv-pg-db01.ru-central1.internal:8008
+    authentication:
+        username: patroni_api_usr
+        password: Som3P@ssw0rd!23
+    certfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt
+    keyfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.key
+    cafile: /home/postgres/ssl/root.crt
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Request examples:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ curl -X GET http://$(hostname -f):8008/cluster | jq .
++++++
+curl: (56) Recv failure: Connection reset by peer
++++++
+ 
+$ curl -k -X GET https://$(hostname -f):8008/cluster | jq .
++++++
+{
+  "members": [
+    {
+      "name": "srv-pg-db01.ru-central1.internal",
+      "role": "leader",
+      "state": "running",
+      "api_url": "https://srv-pg-db01.ru-central1.internal:8008/patroni",
+      "host": "srv-pg-db01.ru-central1.internal",
+      "port": 5432,
+      "timeline": 70
+    },
+    {
+      "name": "srv-pg-db02.ru-central1.internal",
+      "role": "sync_standby",
+      "state": "running",
+      "api_url": "http://srv-pg-db02.ru-central1.internal:8008/patroni",    <--- still uses HTTP instead of HTTPS cause I'm testing only on first server
+      "host": "srv-pg-db02.ru-central1.internal",
+      "port": 5432,
+      "timeline": 70,
+      "lag": 0
+    }
+  ]
+}
++++++
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="c4" class="post-section">
+				<h2>Case 4</h2>
+                <p>Let's add additional protection layer by adding requirement for checking client certificates for all requests to Patroni API server (safe/unsafe endpoints).</p>
+                <p>UnSafe endpoints protected by username/password, SSL and client certificates verification.</p>
+                <p>Safe endpoints protected by SSL and client certificates verification.</p>
+                <p>Patroni config file <b>restapi</b> section example:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+restapi:
+    listen: 0.0.0.0:8008
+    connect_address: srv-pg-db01.ru-central1.internal:8008
+    authentication:
+        username: patroni_api_usr
+        password: Som3P@ssw0rd!23
+    certfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt
+    keyfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.key
+    cafile: /home/postgres/ssl/root.crt
+    verify_client: required
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Request examples:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ curl -k -X GET https://$(hostname -f):8008/cluster | jq .
++++++
+curl: (35) NSS: client certificate not found (nickname not specified)
++++++
+ 
+$ curl -k https://$(hostname -f):8008/cluster  --cacert /home/postgres/ssl/root.crt --cert /home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt --key /home/postgres/ssl/srv-pg-db01.ru-central1.internal.key  | jq .
++++++
+{
+  "members": [
+    {
+      "name": "srv-pg-db01.ru-central1.internal",
+      "role": "leader",
+      "state": "running",
+      "api_url": "https://srv-pg-db01.ru-central1.internal:8008/patroni",
+      "host": "srv-pg-db01.ru-central1.internal",
+      "port": 5432
+    },
+    {
+      "name": "srv-pg-db02.ru-central1.internal",
+      "role": "sync_standby",
+      "state": "running",
+      "api_url": "http://srv-pg-db02.ru-central1.internal:8008/patroni",
+      "host": "srv-pg-db02.ru-central1.internal",
+      "port": 5432,
+      "timeline": 70,
+      "lag": 0
+    }
+  ]
+}
++++++
+                                </code></pre>
+                            </div>
+				</div>
+                <p><b>NOTE:</b> looks like Patroni API server only checks if user certificate is signed by the same or any other trusted CA. There is no check if CN in user certificate is equal to username parameter defined in Patroni config restapi section.</p>
+			</section>
+
+			<section id="c5" class="post-section">
+				<h2>Case 5</h2>
+                <p>Let's add another protection layer for UnSafe endpoints by adding <code>allowlist_include_members</code> parameter.</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+allowlist_include_members: (optional): 
+If set to true it allows accessing unsafe REST API endpoints from other cluster members registered in DCS (IP address or hostname is taken from the members api_url). Be careful, it might happen that OS will use a different IP for outgoing connections.
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Patroni config file <b>restapi</b> section example:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+restapi:
+    listen: 0.0.0.0:8008
+    connect_address: srv-pg-db01.ru-central1.internal:8008
+    authentication:
+        username: patroni_api_usr
+        password: Som3P@ssw0rd!23
+    certfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt
+    keyfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.key
+    cafile: /home/postgres/ssl/root.crt
+    verify_client: required
+    allowlist_include_members: true
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Request example from another server which is not a part of database Patroni cluster:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ curl -k -u patroni_api_usr:Som3P@ssw0rd!23 -X POST https://srv-pg-db01.ru-central1.internal:8008/reload --cacert /etc/etcd/ssl/root.crt --cert /etc/etcd/ssl/srv-pg-db01.ru-central1.internal.crt --key /etc/etcd/ssl/srv-pg-db01.ru-central1.internal.key
++++++
+Access is denied
++++++
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="c6" class="post-section">
+				<h2>Case 6</h2>
+                <p>Add <b>ctl</b> section to avoid Python Warnings when using patronictl:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+restapi:
+    listen: 0.0.0.0:8008
+    connect_address: srv-pg-db01.ru-central1.internal:8008
+    authentication:
+        username: patroni_api_usr
+        password: Som3P@ssw0rd!23
+    certfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt
+    keyfile: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.key
+    cafile: /home/postgres/ssl/root.crt
+    verify_client: required
+    allowlist_include_members: true
+ 
+ctl:
+    insecure: false
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Warning examples when ctl section is not defined and has default insecure parameter value set to true:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ patronictl -c /etc/patroni/postgres.yml reload --force test_cluster
+ 
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 76 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 76 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+2023-06-07 15:18:37,837 - WARNING - /usr/lib/python3.6/site-packages/urllib3/connectionpool.py:1004: InsecureRequestWarning: Unverified HTTPS request is being made. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
+  InsecureRequestWarning,
+Reload request received for member srv-pg-db02.ru-central1.internal and will be processed within 10 seconds
+2023-06-07 15:18:37,858 - WARNING - /usr/lib/python3.6/site-packages/urllib3/connectionpool.py:1004: InsecureRequestWarning: Unverified HTTPS request is being made. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
+  InsecureRequestWarning,
+Reload request received for member srv-pg-db01.ru-central1.internal and will be processed within 10 seconds
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="haproxy" class="post-section">
+				<h2>HAProxy config</h2>
+                <p>Here is a part of HAProxy config before enabling Patroni API protection:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+backend pgsql_back_master
+    mode                    tcp
+    option                  httpchk OPTIONS /master
+    http-check              expect status 200
+    default-server          inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
+    server                  srv-pg-db01.ru-central1.internal srv-pg-db01.ru-central1.internal:5432 maxconn 195 check port 8008
+    server                  srv-pg-db02.ru-central1.internal srv-pg-db02.ru-central1.internal:5432 maxconn 195 check port 8008
+                                </code></pre>
+                            </div>
+				</div>
+                <p>After enabling Patroni API protection we will get below errors in HAProxy log:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+Jun 07 15:41:32 srv-pg-db01.ru-central1.internal haproxy[25054]: [WARNING]  (25057) : Server pgsql_back_master/srv-pg-db01.ru-central1.internal is DOWN, reason: Socket error, info: "Connection reset by peer", check duration: 0ms. 1 active and 0 backup servers left. 0 sessions active, 0 requeued, 0 remaining in queue.
+Jun 07 15:41:33 srv-pg-db01.ru-central1.internal haproxy[25054]: [WARNING]  (25057) : Server pgsql_back_master/srv-pg-db02.ru-central1.internal is DOWN, reason: Socket error, info: "Connection reset by peer", check duration: 7ms. 0 active and 0 backup servers left. 0 sessions active, 0 requeued, 0 remaining in queue.
+Jun 07 15:41:33 srv-pg-db01.ru-central1.internal haproxy[25054]: [NOTICE]   (25057) : haproxy version is 2.4.7-b5e51a5
+Jun 07 15:41:33 srv-pg-db01.ru-central1.internal haproxy[25054]: [NOTICE]   (25057) : path to executable is /usr/sbin/haproxy
+Jun 07 15:41:33 srv-pg-db01.ru-central1.internal haproxy[25054]: [ALERT]    (25057) : backend 'pgsql_back_master' has no server available!
+Message from syslogd@localhost at Jun  7 15:41:33 ...
+ haproxy[25057]: backend pgsql_back_master has no server available!
+Jun 07 15:41:34 srv-pg-db01.ru-central1.internal haproxy[25054]: [WARNING]  (25057) : Server pgsql_back_replica/srv-pg-db01.ru-central1.internal is DOWN, reason: Socket error, info: "Connection reset by peer", check duration: 1ms. 1 active and 0 backup servers left. 0 sessions active, 0 requeued, 0 remaining in queue.
+Message from syslogd@localhost at Jun  7 15:41:34 ...
+ haproxy[25057]: backend pgsql_back_replica has no server available!
+Jun 07 15:41:34 srv-pg-db01.ru-central1.internal haproxy[25054]: [WARNING]  (25057) : Server pgsql_back_replica/srv-pg-db02.ru-central1.internal is DOWN, reason: Socket error, info: "Connection reset by peer", check duration: 7ms. 0 active and 0 backup servers left. 0 sessions active, 0 requeued, 0 remaining in queue.
+Jun 07 15:41:34 srv-pg-db01.ru-central1.internal haproxy[25054]: [ALERT]    (25057) : backend 'pgsql_back_replica' has no server available!
+                                </code></pre>
+                            </div>
+				</div>
+                <p>We need to take some HAPorxy config corrections, but first we have to take below "trick" with our certs:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ cat ~/ssl/srv-pg-db01.ru-central1.internal.crt ~/ssl/srv-pg-db01.ru-central1.internal.key > ~/ssl/haproxy-srv-pg-db01.ru-central1.internal.pem
+ 
+$ cat ~/ssl/srv-pg-db02.ru-central1.internal.crt ~/ssl/srv-pg-db02.ru-central1.internal.key > ~/ssl/haproxy-srv-pg-db02.ru-central1.internal.pem
+                                </code></pre>
+                            </div>
+				</div>
+                <p>This is required, because otherwise we will face will another HAProxy errors:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal systemd[1]: Starting HAProxy Load Balancer...
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal systemd[1]: Started HAProxy Load Balancer.
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [NOTICE]   (28014) : haproxy version is 2.4.7-b5e51a5
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [NOTICE]   (28014) : path to executable is /usr/sbin/haproxy
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [ALERT]    (28014) : parsing [/etc/haproxy/haproxy.cfg:49] : 'server srv-pg-db01.ru-central1.internal' : No Private Key found in '/home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt.key'..
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [ALERT]    (28014) : parsing [/etc/haproxy/haproxy.cfg:50] : 'server srv-pg-db02.ru-central1.internal' : No Private Key found in '/home/postgres/ssl/srv-pg-db02.ru-central1.internal.crt.key'..
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [ALERT]    (28014) : parsing [/etc/haproxy/haproxy.cfg:58] : 'server srv-pg-db01.ru-central1.internal' : No Private Key found in '/home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt.key'..
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [ALERT]    (28014) : parsing [/etc/haproxy/haproxy.cfg:59] : 'server srv-pg-db02.ru-central1.internal' : No Private Key found in '/home/postgres/ssl/srv-pg-db02.ru-central1.internal.crt.key'..
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [ALERT]    (28014) : Error(s) found in configuration file : /etc/haproxy/haproxy.cfg
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal haproxy[28014]: [ALERT]    (28014) : Fatal errors found in configuration.
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal systemd[1]: haproxy.service: main process exited, code=exited, status=1/FAILURE
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal systemd[1]: Unit haproxy.service entered failed state.
+Jun 07 16:16:45 srv-pg-db01.ru-central1.internal systemd[1]: haproxy.service failed.
+                                </code></pre>
+                            </div>
+				</div>
+                <p>So the final version of HAProxy config changes should looks like:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+server                  srv-pg-db01.ru-central1.internal srv-pg-db01.ru-central1.internal:5432 maxconn 195 check check-ssl verify none port 8008 crt /home/postgres/ssl/haproxy-srv-pg-db01.ru-central1.internal.pem ca-file /home/postgres/ssl/root.crt
+server                  srv-pg-db02.ru-central1.internal srv-pg-db02.ru-central1.internal:5432 maxconn 195 check check-ssl verify none port 8008 crt /home/postgres/ssl/haproxy-srv-pg-db02.ru-central1.internal.pem ca-file /home/postgres/ssl/root.crt
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Restart HAProxy to take changes:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ sudo systemctl restart haproxy
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="app" class="post-section">
+				<h2>Appendix</h2>
+				<p>All changes performed in Patroni config file requires <b>only</b> Patroni service <b>reload</b> or sending SIGHUP to Patroni main process id (kill -HUP <pid>) if reload section is not defined in Patroni service unit file.</p>
+			</section>
+
+
+            </section>
+            <div class="back-to-top">
+                <a href="#top">↑ Back to Top</a>
+            </div>
+        </article>
+    </main>
+
+    <footer class="disclaimer">
+        <hr />
+        <p>
+            DISCLAIMER:<br>
+            The information presented here is intended for informational purposes only. The author assumes no responsibility or liability for any damages resulting from the application of the techniques described herein. Use this content at your own risk.<br>
+            Always create backups and test configurations thoroughly before implementing them in live environments.
+        </p>
+    </footer>
+</body>
+</html>
