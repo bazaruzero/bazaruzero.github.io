@@ -771,6 +771,114 @@ AND usename LIKE 'apps%'
 --AND now() - query_start > INTERVAL '5 minutes';</code></pre>
                 </div>
 
+                <h3 id="pgssl">Certificates / SSL / TLS</h3>
+                <p>Check PG server cert:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>openssl s_client -starttls postgres -connect $HOSTNAME:5432</code></pre>
+                </div>
+                <p><b>NOTE</b>: When certificate is self-signed, then issuer and subject field contains the same value.</p>
+                <p>Check SSL settings in DB:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>select name, setting, context from pg_settings where name like 'ssl%' order by name;</code></pre>
+                </div>
+                <p>CA + Server certs:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>{
+mkdir -p ~/ssl
+openssl req -new -x509 -days 730 -nodes -out /home/postgres/ssl/root.crt -keyout /home/postgres/ssl/root.key -subj "/CN=test-ca"
+openssl req -new -nodes -out /home/postgres/ssl/srv-pg-db01.ru-central1.internal.csr -keyout /home/postgres/ssl/srv-pg-db01.ru-central1.internal.key -subj "/CN=srv-pg-db01.ru-central1.internal" -config /etc/pki/tls/openssl.cnf
+openssl x509 -req -in /home/postgres/ssl/srv-pg-db01.ru-central1.internal.csr -days 730 -CA /home/postgres/ssl/root.crt -CAkey /home/postgres/ssl/root.key -CAcreateserial -out /home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt
+chmod 700 ~/ssl/ && chmod 600 ~/ssl/*.key && rm -f ~/ssl/*.srl ~/ssl/*.csr
+}</code></pre>
+                </div>
+                <p>Client (postgres) cert:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>{
+openssl req -new -nodes -out /home/postgres/ssl/client.csr -keyout /home/postgres/ssl/client.key -subj "/CN=postgres"
+openssl x509 -req -in /home/postgres/ssl/client.csr -days 100 -CA /home/postgres/ssl/root.crt -CAkey /home/postgres/ssl/root.key -CAcreateserial -out /home/postgres/ssl/client.crt
+chmod 700 ~/ssl/ && chmod 600 ~/ssl/*.key && rm -f ~/ssl/*.srl ~/ssl/*.csr
+}</code></pre>
+                </div>
+                <p>Client (ssl_user):</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>{
+openssl req -new -nodes -out /home/postgres/ssl/client_ssl_user.csr -keyout /home/postgres/ssl/client_ssl_user.key -subj "/CN=ssl_user"
+openssl x509 -req -in /home/postgres/ssl/client_ssl_user.csr -days 100 -CA /home/postgres/ssl/root.crt -CAkey /home/postgres/ssl/root.key -CAcreateserial -out /home/postgres/ssl/client_ssl_user.crt
+chmod 700 ~/ssl/ && chmod 600 ~/ssl/*.key && rm -f ~/ssl/*.srl ~/ssl/*.csr
+}</code></pre>
+                </div>
+                <p>Client (ssl_user) EXPIRED:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>#yum install faketime
+
+{
+openssl req -new -nodes -out /home/postgres/ssl/client_ssl_user_expired.csr -keyout /home/postgres/ssl/client_ssl_user_expired.key -subj "/CN=ssl_user"
+faketime '2008-12-24 08:15:42' openssl x509 -req -in /home/postgres/ssl/client_ssl_user_expired.csr -days 730 -CA /home/postgres/ssl/root.crt -CAkey /home/postgres/ssl/root.key -CAcreateserial -out /home/postgres/ssl/client_ssl_user_expired.crt
+chmod 700 ~/ssl/ && chmod 600 ~/ssl/*.key && rm -f ~/ssl/*.srl ~/ssl/*.csr
+openssl x509 -in client_ssl_user_expired.crt -text -noout | grep -iA2 validity
+}</code></pre>
+                </div>
+                <p>Client (ssl_user) WRONG /CN:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>{
+openssl req -new -nodes -out /home/postgres/ssl/client_ssl_user_wrong_cn.csr -keyout /home/postgres/ssl/client_ssl_user_wrong_cn.key -subj "/CN=abc"
+openssl x509 -req -in /home/postgres/ssl/client_ssl_user_wrong_cn.csr -days 100 -CA /home/postgres/ssl/root.crt -CAkey /home/postgres/ssl/root.key -CAcreateserial -out /home/postgres/ssl/client_ssl_user_wrong_cn.crt
+chmod 700 ~/ssl/ && chmod 600 ~/ssl/*.key && rm -f ~/ssl/*.srl ~/ssl/*.csr
+}</code></pre>
+                </div>
+                <p>Create ssl_user in DB:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>postgres=# create user ssl_user with password '***';</code></pre>
+                </div>
+                <p>Conn with SSL:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>psql "host=srv-pg-db01.ru-central1.internal port=5433 dbname=postgres user=ssl_user sslmode=verify-full sslcert=/home/postgres/ssl/client_ssl_user.crt sslkey=/home/postgres/ssl/client_ssl_user.key sslrootcert=/home/postgres/ssl/root.crt"</code></pre>
+                </div>
+                <p>Conn with SSL Expired:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>psql "host=srv-pg-db01.ru-central1.internal port=5433 dbname=postgres user=ssl_user sslmode=verify-full sslcert=/home/postgres/ssl/client_ssl_user_expired.crt sslkey=/home/postgres/ssl/client_ssl_user_expired.key sslrootcert=/home/postgres/ssl/root.crt"</code></pre>
+                </div>
+                <p>Conn with SSL WRONG /CN:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>psql "host=srv-pg-db01.ru-central1.internal port=5433 dbname=postgres user=ssl_user sslmode=verify-full sslcert=/home/postgres/ssl/client_ssl_user_wrong_cn.crt sslkey=/home/postgres/ssl/client_ssl_user_wrong_cn.key sslrootcert=/home/postgres/ssl/root.crt"</code></pre>
+                </div>
+                <p>Conn with NO-SSL:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>psql "host=srv-pg-db01.ru-central1.internal port=5433 dbname=postgres user=ssl_user sslmode=disable"</code></pre>
+                </div>
+                <p>Check Session:</p>
+                <div class="code-block">
+                    <span class="code-language"></span>
+                    <pre><code>-- For v11 --
+
+SELECT pgsa.datname, pgsa.pid, pgsa.application_name, pgsa.client_addr, pgsa.usename, pgssl.ssl, pgssl.version, pgssl.clientdn
+FROM pg_stat_ssl pgssl
+JOIN pg_stat_activity pgsa
+ON pgssl.pid = pgsa.pid
+WHERE pgsa.usename = 'postgres';
+
+-- For v12 --
+SELECT pgsa.datname, pgsa.pid, pgsa.application_name, pgsa.client_addr, pgsa.usename, pgssl.ssl, pgssl.version, pgssl.client_dn
+FROM pg_stat_ssl pgssl
+JOIN pg_stat_activity pgsa
+ON pgssl.pid = pgsa.pid
+WHERE pgsa.usename = 'ssl_user';</code></pre>
+                </div>
+
+
+
             </section>
 
             <div class="back-to-top">
