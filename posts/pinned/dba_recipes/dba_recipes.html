@@ -59,14 +59,19 @@
                                 <li><a href="#c3">Prepared Statements with Partitioned Tables (LockManager waits)</a></li>
                                 <li><a href="https://postgrespro.ru/list/id/CAJrrPGeQ-oQdEHUHyB9xYaF0Da5YOPYbsGcH5hN2RaSkmFscfA@mail.gmail.com">Query is executed slower on hot standby slave databasethen on master database</a></li>
                                 <li><a href="#c4">Inactive Logical Replication Slot problems (catalog_xmin)</a></li>
-                                <li><a href="#c5">LWLock:BufferMapping possible reasons</a></li>
                                 <li><a href="#c6">Optimizer Statistics on partitioned tables</a></li>
                                 <li><a href="#c7">Optimizer Statistics problems on newly created table partition</a></li>
                                 <li><a href="#c8">HASH partitioning for distributing write-load</a></li>
-                                <li><a href="#c9">Foreign Keys in PostgreSQL are harmful</a></li>
                                 <li><a href="#c10">DELETE from one table affects another</a></li>
                                 <li><a href="#c11">Consider additional abstractions in the database</a></li>
                                 <li><a href="#c12">About UUID</a></li>
+                            </ul>
+                    </li>
+                    <li>
+                        <a href="#we">Wait Events</a>
+                            <ul>
+                                <li><a href="#we1">LWLock:BufferMapping</a></li>
+                                <li><a href="#we2">LWLock:BufferContent</a></li>
                             </ul>
                     </li>
                     <li>
@@ -160,18 +165,6 @@
                     <p>The root cause is that a <b>logical replication slot reserves catalog_xmin</b>, which blocks the autovacuum of the system catalog. In systems with frequent and aggressive autoanalyze, <b>pg_statistic begins to bloat</b>. As a result, <b>query planning degrades</b>.</p>
                     <p>Solution is to either remove inactive logical slots or reconsider the frequency of autoanalyze execution.</p>
 
-                <h3 id="c5">LWLock:BufferMapping possible reasons</h3>
-                    <p>Good explanation on AWS docs <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwl-buffer-mapping.html">here</a></p>
-                    <p>Common reasons are:
-                        <ul>
-                            <li>Not enough <code>shared_buffers</code>. For example, there might be 10 queries that work fine, but at some point a query arrives that reads many blocks, <b>using an index</b>, which starts to flush the cache. This affects normal queries, causing them to wait on BufferMapping locks</li>
-                            <li>Query <b>plan changed</b> for some reason to a less optimal one, which leads to a greater number of block reads (for example, it switched to a different index or to a sequential scan)</li>
-                            <li>Lack of <b>up-to-date optimizer statistics</b> can prevent an index from being used, for example, <b>on a new partition for the current day</b> (this is especially problematic if auto-vacuum is disabled on partitions and the default mechanism does not work).</li>
-                            <li><b>Load</b> on the database from the application <b>has increased</b> (the number of queries, the volume of data requested).</li>
-                            <li><b>Long-running transaction or query (or queries)</b> is holding the database transaction horizon, preventing the autovacuum and <a href="https://habr.com/ru/companies/tantor/articles/916318/">HOT-cleanup</a> from running. This can cause other queries (especially those on "queue" type tables) to read a larger number of blocks due to the presence of dead tuples, potentially leading to LWLock:BufferMapping wait events.</li>
-                        </ul>
-                    </p>
-
                 <h3 id="c6">Optimizer Statistics on partitioned tables</h3>
                     <p><a href="https://www.postgresql.org/docs/current/sql-analyze.html#:~:text=The%20autovacuum%20daemon%20does%20not%20process%20partitioned%20tables%2C%20nor%20does%20it%20process%20inheritance%20parents%20if%20only%20the%20children%20are%20ever%20modified.%20It%20is%20usually%20necessary%20to%20periodically%20run%20a%20manual%20ANALYZE%20to%20keep%20the%20statistics%20of%20the%20table%20hierarchy%20up%20to%20date.">Doc</a> says: <i>"The autovacuum daemon does not process partitioned tables, nor does it process inheritance parents if only the children are ever modified. It is usually necessary to periodically run a manual ANALYZE to keep the statistics of the table hierarchy up to date."</i></p>
 
@@ -182,10 +175,6 @@
                 <h3 id="c8">HASH partitioning for distributing write-load</h3>
                     <p>In the case of an append-only table under very high load, you may encounter wait events like <code>IO:DataFileExtend</code> combined with <code><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/apg-waits.lockextend.html">LWLock:extend</a></code>. In such situations, it is recommended to hash-partition the table to distribute the load and minimize these wait events.</p>
                     <p><a href="https://www.shayon.dev/post/2025/221/bypass-postgresql-catalog-overhead-with-direct-partition-hash-calculations/">Interesting tests</a> about partitioning overhead.</p>
-
-                <h3 id="c9">Foreign Keys in PostgreSQL are harmful</h3>
-                    <p>Especially with partitioned tables.</p>
-                    <p>FK can also be a reason of  <b><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwlockbuffercontent.html#:~:text=Excessive%20use%20of%20foreign%20key%20constraints">LWLock:BufferContent</a></b> wait events caused by integrity checks and locks mechanics in Postgres.</p>
 
                 <h3 id="c10">DELETE from one table affects another</h3>
                     <p>Possible reasons:</p>
@@ -201,6 +190,28 @@
                 <h3 id="c12">About UUID</h3>
                     <p>In short, due to their random nature, UUIDs can cause a large number of blocks to be read. This happens because the logical order of values in the index does not match (or correlates poorly with) the physical order in the table (<a href="https://www.postgresql.org/docs/current/view-pg-stats.html#:~:text=the%20entire%20population.)-,correlation,-float4">pg_stats.correlation</a>)</p>
                     <p>Details: <a href="https://andyatkinson.com/avoid-uuid-version-4-primary-keys">one</a>, <a href="https://www.cybertec-postgresql.com/en/unexpected-downsides-of-uuid-keys-in-postgresql/">two</a>, <a href="https://habr.com/ru/companies/tensor/articles/989032/">three</a>.</p>
+
+
+            </section>
+
+            <section id="we" class="post-section">
+                <h2>Wait Events</h2>
+
+                <h3 id="we1">LWLock:BufferMapping</h3>
+                    <p>Good explanation on AWS docs <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwl-buffer-mapping.html">here</a>.</p>
+                    <p>Common reasons are:
+                        <ul>
+                            <li>Query <b>plan changed</b> for some reason to a less optimal one, which leads to a greater number of block reads (for example, it switched to a different index or to a sequential scan)</li>
+                            <li>Lack of <b>up-to-date optimizer statistics</b> can prevent an index from being used, for example, <b>on a new partition for the current day</b> (this is especially problematic if auto-vacuum is disabled on partitions and the default mechanism does not work).</li>
+                            <li><b>Long-running transaction or query (or queries)</b> is holding the database transaction horizon, preventing the autovacuum and <a href="https://habr.com/ru/companies/tantor/articles/916318/">HOT-cleanup</a> from running. This can cause other queries (especially those on "queue" type tables) to read a larger number of blocks due to the presence of dead tuples, potentially leading to LWLock:BufferMapping wait events.</li>
+                            <li><b>Load</b> on the database from the application <b>has increased</b> (the number of queries, the volume of data requested).</li>
+                            <li>Not enough <code>shared_buffers</code>. For example, there might be 10 queries that work fine, but at some point a query arrives that reads many blocks, <b>using an index</b>, which starts to flush the cache. This affects normal queries, causing them to wait on BufferMapping locks</li>
+                        </ul>
+                    </p>
+
+                <h3 id="we2">LWLock:BufferContent</h3>
+                    <p>Good explanation on AWS docs <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwlockbuffercontent.html">here</a>.</p>
+                    <p><b>Foreign key constraints</b> can be a reason of <b><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwlockbuffercontent.html#:~:text=Excessive%20use%20of%20foreign%20key%20constraints">LWLock:BufferContent</a></b> wait events caused by integrity checks and locks mechanics in Postgres especially with partitioned tables.</p>
 
 
             </section>
