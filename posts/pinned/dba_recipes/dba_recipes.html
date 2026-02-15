@@ -72,6 +72,8 @@
                             <ul>
                                 <li><a href="#we1">LWLock:BufferMapping</a></li>
                                 <li><a href="#we2">LWLock:BufferContent</a></li>
+                                <li><a href="#we3">LWLock:WALWrite</a></li>
+                                <li><a href="#we3">IPC:SyncRep</a></li>
                             </ul>
                     </li>
                     <li>
@@ -212,6 +214,28 @@
                 <h3 id="we2">LWLock:BufferContent</h3>
                     <p>Good explanation on AWS docs <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwlockbuffercontent.html">here</a>.</p>
                     <p><b>Foreign key constraints</b> can be a reason of <b><a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/wait-event.lwlockbuffercontent.html#:~:text=Excessive%20use%20of%20foreign%20key%20constraints">LWLock:BufferContent</a></b> wait events caused by integrity checks and locks mechanics in Postgres especially with partitioned tables.</p>
+
+                <h3 id="we3">LWLock:WALWrite</h3>
+                    <p><a href="https://gitlab.com/gitlab-com/gl-infra/observability/team/-/issues/3717">GitLab - Investigate WALWrite LWLock contention</a></p>
+                    <ul>
+                        <li>Someone is holding all 8 lwlock:walinsert locks for a long time. Maybe because of IO issues => IO:WALSync waits should be in place too.</li>
+                        <li>Check who is generating most WAL records. Is it normal and expected?</li>
+                        <li>Check hardware issues, which cause long IO:WALSync events (disk latency etc).</li>
+                        <li>I suppose synchronous replication (IPC:SyncRep) can also be a possible reason of sessions queue for LWLock:WALWrite lock.</li>
+                        <li>Playaround with <code><a href="https://gitlab.com/gitlab-com/gl-infra/observability/team/-/issues/3717#:~:text=i.e.%20setting-,commit_delay,-to%20a%20small">commit_delay</a></code> parameter.</li>
+                        <li>Playaround with <code><a href="https://www.postgresql.org/docs/8.1/runtime-config-wal.html#:~:text=wal_sync_method%20(string)">wal_sync_method</a></code> paremter and <code><a href="https://tanelpoder.com/posts/using-pg-test-fsync-for-testing-low-latency-writes/">pg_test_fsync</a></code> utility.</li> 
+                    </ul>
+
+                <h3 id="we4">IPC:SyncRep</h3>
+                    <p>Can be observed on clusters with synchronous replication.</p>
+                    <ul>
+                        <li>Check if everything is OK with your replica (disks latency, network).</li>
+                        <li>Check who is generating most WAL records. Is it normal and expected? Replication lag?</li>
+                        <li>Are there any operations on Master which can cause huge spikes in WAL generation (vacuum, reindex, copy, etc). <a href="https://ardentperf.com/2025/10/27/explaining-ipcsyncrep-postgres-sync-replication-is-not-actually-sync-replication/">Check this article.</a></li>
+                    </ul>    
+
+
+
 
 
             </section>
