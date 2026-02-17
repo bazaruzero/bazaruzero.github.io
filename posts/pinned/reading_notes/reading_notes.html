@@ -58,20 +58,44 @@
 
                 <div class="week-item">
                     <div class="week-header collapsed" onclick="toggleWeek(this)">
-                        16.02.26 - 22.02.26
+                        09.02.26 - 15.02.26
                     </div>
                     <div class="week-content collapsed">
                         <ul class="reading-list">
                             <li>
-                                <a href="#">Article Title #1</a>
+                                <a href="https://habr.com/ru/articles/996560/">25 железных правил проектирования баз данных в PostgreSQL</a>
                                 <div class="article-description">
-                                    Review notes
+                                    Fair advice. Not my favorite, but I'll keep it in mind.
                                 </div>
                             </li>
                             <li>
-                                <a href="#">Article Title #2</a>
+                                <a href="https://habr.com/ru/companies/gnivc/articles/992660/">Один "странный" случай индексного сканирования</a>
                                 <div class="article-description">
-                                    Review notes
+                                    Worth a read. Key insight: PostgreSQL might switch from seq scan to index scan (bitmapscan) when the table is sparse - i.e., pages > rows. Good comments.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/articles/995722/">Считаем ресурсы под PostgreSQL</a>
+                                <div class="article-description">
+                                    Interesting article, but nothing super specific. Has links to config calculators. Nice AI-prompt example.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/companies/oleg-bunin/articles/985030/">10 000 RPS и доступность 99,99%: как устроено шардирование PG в процессинге Яндекс Такси</a>
+                                <div class="article-description">
+                                    Interesting, but more for architects and dev leads. A good reference for developers who need concrete examples.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/companies/ozontech/articles/705912/">База по шардированию базы</a>
+                                <div class="article-description">
+                                    Interesting example on how to shard your database with code examples on Go.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/companies/yandex/articles/972164/">Очереди на PostgreSQL: антипаттерн или реальность жизни</a>
+                                <div class="article-description">
+                                    Good read on PostgreSQL queue implementations - includes examples and rationale. Handy reference for developers.
                                 </div>
                             </li>
                         </ul>
