@@ -121,6 +121,12 @@
                                 </li>
 						    </ul>
                     </li>
+                    <li>
+                        <a href="#issues">Issue / Fix</a>
+                            <ul>
+                                <li><a href="#postgisissue">Postgis create extension issue</a></li>
+                            </ul>
+                    </li>
                 </ul>
             </nav>
 
@@ -442,6 +448,98 @@ WHERE (
                         <p>If none of the above methods have helped resolve the issue, it's time to ask: Is the exact amount of data requested by this query truly necessary? This requires in-depth work with analysts and developers. It may turn out that this information is no longer needed at all, can be obtained in another way, or can be retrieved for a shorter time period (e.g., not for the last year, but for the last month, which would significantly reduce the dataset).</p>
 
             </section>
+
+            <section id="issues" class="post-section">
+                <h2>Issue / Fix</h2>
+                
+                <h3 id="postgisissue">Postgis create extension</h3>
+                    <p><u><b>ISSUE:</b></u></p>
+				    <div class="specs-container">
+                                <div class="code-block">
+                                    <span class="code-language"></span>
+                                    <pre><code>
+psql> CREATE EXTENSION postgis;
+server closed the connection unexpectedly
+        This probably means the server terminated abnormally
+        before or while processing the request.
+The connection to the server was lost. Attempting reset: Failed.
+ 
+$ du -shc /pglogs/12/postgresql.log
+6.9G    /pglogs/12/postgresql.log
+6.9G    total
+ 
+[3987621]:[9-1]app=,user=,db=,client=LOG:  server process (PID 4048329) was terminated by signal 9: Killed
+[3987621]:[10-1]app=,user=,db=,client=DETAIL:  Failed process was running: create extension postgis;
+[3987621]:[11-1]app=,user=,db=,client=LOG:  terminating any other active server processes
+[3987621]:[12-1]app=,user=,db=,client=LOG:  archiver process (PID 3987631) exited with exit code 2
+[3987630]:[1-1]app=,user=,db=,client=WARNING:  terminating connection because of crash of another server process
+[3987630]:[2-1]app=,user=,db=,client=DETAIL:  The postmaster has commanded this server process to roll back the current transaction and exit, because another server process exited abnormally and possibly corrupted shared memory.
+[3987630]:[3-1]app=,user=,db=,client=HINT:  In a moment you should be able to reconnect to the database and repeat your command.
+[4050035]:[1-1]app=[unknown],user=[unknown],db=[unknown],client=[local]LOG:  connection received: host=[local]
+[4050035]:[2-1]app=[unknown],user=postgres,db=postgres,client=[local]FATAL:  the database system is in recovery mode
+[3987621]:[13-1]app=,user=,db=,client=LOG:  all server processes terminated; reinitializing
+[4050036]:[1-1]app=,user=,db=,client=LOG:  database system was interrupted; last known up at 2022-07-13 06:33:42 MSK
+[4050036]:[2-1]app=,user=,db=,client=LOG:  database system was not properly shut down; automatic recovery in progress
+[4050036]:[3-1]app=,user=,db=,client=LOG:  redo starts at 0/F000028
+[4050036]:[4-1]app=,user=,db=,client=LOG:  redo done at 0/11095EE8
+[4050036]:[5-1]app=,user=,db=,client=LOG:  checkpoint starting: end-of-recovery immediate
+[4050036]:[6-1]app=,user=,db=,client=LOG:  checkpoint complete: wrote 238 buffers (0.2%); 0 WAL file(s) added, 0 removed, 2 recycled; write=0.007 s, sync=0.008 s, total=0.026 s; sync files=80, longest=0.006 s, average=0.001 s; distance=33368 kB, estimate=33368 kB
+[3987621]:[14-1]app=,user=,db=,client=LOG:  database system is ready to accept connections
+                                    </code></pre>
+                                </div>
+                    <p>There was huge memory consumption by a session creating the extension. Server has only 4 GB of RAM and looks like OMM killer did its job.</p>
+                    <p><u><b>FIX:</b></u></p>
+                    <p>Huge log file is because of pgaudit extension enabled and all ddl commands are logged.</p>
+				    <div class="specs-container">
+                                <div class="code-block">
+                                    <span class="code-language"></span>
+                                    <pre><code>
+psql> select name, setting, context from pg_settings where name like 'pgaudit.%' order by name;
+            name            | setting  |  context
+----------------------------+----------+-----------
+ pgaudit.log                | ddl,role | superuser
+ pgaudit.log_catalog        | on       | superuser
+ pgaudit.log_client         | off      | superuser
+ pgaudit.log_level          | log      | superuser
+ pgaudit.log_parameter      | on       | superuser
+ pgaudit.log_relation       | on       | superuser
+ pgaudit.log_statement_once | off      | superuser
+ pgaudit.role               | auditor  | superuser
+(8 rows)
+                                    </code></pre>
+                                </div>
+				    </div>
+                    <p>Temporary disable pgaudit logging and create postgis extension:</p>
+                                <div class="code-block">
+                                    <span class="code-language"></span>
+                                    <pre><code>
+psql> ALTER SYSTEM SET pgaudit.log = '';
+ALTER SYSTEM SET pgaudit.log_catalog = off;
+ALTER SYSTEM SET pgaudit.log_parameter = off;
+ALTER SYSTEM SET pgaudit.log_relation = off;
+ 
+psql> SELECT pg_reload_conf();
+ 
+psql> CREATE EXTENSION postgis;
+                                    </code></pre>
+                                </div>
+				    </div>
+                    <p>Change pgaudit parameters back:</p>
+                                <div class="code-block">
+                                    <span class="code-language"></span>
+                                    <pre><code>
+psql> ALTER SYSTEM SET pgaudit.log = 'ddl,role';
+ALTER SYSTEM SET pgaudit.log_catalog = on;
+ALTER SYSTEM SET pgaudit.log_parameter = on;
+ALTER SYSTEM SET pgaudit.log_relation = on;
+ 
+psql> SELECT pg_reload_conf();
+                                    </code></pre>
+                                </div>
+				    </div>
+
+            </section>
+
 
             <div class="back-to-top">
                 <a href="#top">↑ Back to Top</a>
