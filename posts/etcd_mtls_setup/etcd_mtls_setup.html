@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBA Notes - Etcd mTLS Setup</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <h1><a href="../../index.html">DBA Notes</a></h1>
+        <a href="https://github.com/bazaruzero" class="github-link" target="_blank" 
+           rel="noopener noreferrer" aria-label="GitHub profile">
+            <svg width="32" height="32" viewBox="0 0 98 96" fill="currentColor">
+                <title>GitHub Logo</title>
+                <path d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
+            </svg>
+        </a>
+    </header>
+
+    <nav class="categories" aria-label="Blog categories">
+        <a href="../../categories/postgresql.html">PostgreSQL</a>
+        <a href="../../categories/oracle.html">Oracle</a>
+        <a href="../../categories/tools.html">Tools</a>
+        <a href="../../categories/theory_and_experiments.html">T&E</a>
+        <a href="../../categories/misc.html">Misc</a>
+        <a href="../../categories/bookmarks.html">Bookmarks</a>
+    </nav>
+
+    <main class="main-content">
+        <article class="blog-post">
+            <h1 class="post-title">Etcd mTLS Setup</h1>
+
+            <section id="part1" class="post-section">
+                <p>Step by step instructions on how to reconfigure existing Etcd cluster to use mTLS.</p>
+            </section>            
+
+            <nav class="table-of-contents">
+                <h2>Table of Contents</h2>
+                <ul>
+                    <li><a href="#docs">Docs</a></li>
+                    <li><a href="#c1">Etcd cluster only</a></li>
+                        <ul>
+                            <li><a href="#c1_setup">Current setup</a></li>
+                            <li><a href="#c1_prepare_certs">Issue certificates for each Etcd cluster member</a></li>
+                            <li><a href="#c1_copy_certs">Copy certs folder to each Etcd cluster member</a></li>
+                            <li><a href="#c1_client_mtls">Enable Client-Server mTLS</a></li>
+                            <li><a href="#c1_peer_mtls">Enable peer connections mTLS</a></li>
+                            <li><a href="#c1_adhoc">(OPTIONAL) Update ad-hoc commands environment file</a></li>
+                        </ul>
+                    <li><a href="#c2">Etcd cluster used by Patroni</a></li>
+                        <ul>
+                            <li><a href="#c2_setup">Check current setup</a></li>
+                            <li><a href="#c2_gen_certs">Generate new certificates</a></li>
+                            <li><a href="#c2_cope_certs">Copy certificates to each server</a></li>
+                            <li><a href="#c2_partoni_pause">Disable Patroni autofailover mode (pause mode)</a></li>
+                            <li><a href="#c2_stop_patroni">Stop Patroni on database servers</a></li>
+                            <li><a href="#c2_remove_etcd">Stop and remove current Etcd cluster</a></li>
+                            <li><a href="#c2_etcd_config">Edit Etcd config to use mTLS</a></li>
+                            <li><a href="#c2_start_etcd">Start Etcd cluster</a></li>
+                            <li><a href="#c2_enable_apiv2">Enable Etcd apiV2 basic authentication</a></li>
+                            <li><a href="#c2_enable_apiv3">Enable Etcd apiV3 basic authentication</a></li>
+                            <li><a href="#c2_patroni_config">Edit Patroni config</a></li>
+                            <li><a href="#c2_thirdparty_config">Edit third-party tools config files</a></li>
+                            <li><a href="#c2_start_patroni_master">Start Patroni on Master</a></li>
+                            <li><a href="#c2_start_patroni_replica">Start Patroni on Replicas</a></li>
+                            <li><a href="#c2_patroni_resume">Enable Patroni autofailover (resume)</a></li>
+                            <li><a href="#c2_check_logs">Check log files for error messages</a></li>
+                            <li><a href="#c2_switchover">(OPTIONAL) Take a Postgres switchover and switchback using Patroni</a></li>
+                            <li><a href="#c2_adhoc">(OPTIONAL) Create environment file with ad-hoc commands</a></li>
+                        </ul>
+                    <li><a href="#script">Self-signed certificates generator</a></li>
+                </ul>
+            </nav>
+
+			<section id="docs" class="post-section">
+				<h2>Docs</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li><a href="https://etcd.io/docs/v3.4/op-guide/security/">Docs - Transport security model</a></li>
+                        <li><a href="https://etcd.io/docs/v3.4/op-guide/configuration/">Docs - Configuration options</a></li>
+                        <li><a href="https://github.com/kelseyhightower/etcd-production-setup">GitHub - etcd-production-setup</a></li>
+                        <li><a href="https://github.com/etcd-io/etcd/issues/8320">ETCD TLS still supports weak 64-bit block ciphers #8320</a></li>
+                        <li><a href="https://github.com/ssllabs/research/wiki/SSL-and-TLS-Deployment-Best-Practices#23-use-secure-cipher-suites">SSL and TLS Deployment Best Practices</a></li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="c1" class="post-section">
+				<h2>Etcd cluster only</h2>
+                <h3 id="c1_setup">Current setup</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ ETCDCTL_API=2 etcdctl --endpoints=http://$(hostname -f):2379 member list
+----------
+214e342c31d25d8: name=srv-pg-db02 peerURLs=http://srv-pg-db02.ru-central1.internal:2380 clientURLs=http://srv-pg-db02.ru-central1.internal:2379 isLeader=false
+43cfaa679137736: name=srv-pg-arb peerURLs=http://srv-pg-arb.ru-central1.internal:2380 clientURLs=http://srv-pg-arb.ru-central1.internal:2379 isLeader=false
+6b40fb7c1a183c62: name=srv-pg-db01 peerURLs=http://srv-pg-db01.ru-central1.internal:2380 clientURLs=http://srv-pg-db01.ru-central1.internal:2379 isLeader=true
+----------
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p><b>NOTE:</b> both client and peers traffic use http protocol.</p>
+			
+                <h3 id="c1_prepare_certs">Issue certificates for each Etcd cluster member</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ chmod 700 ~/etcd-certs-generator.sh
+$ ~/etcd-certs-generator.sh
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p>Script output example:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+=============== Input ===============
+Enter the number of servers in your Etcd cluster [3]:
+Enter FQDN of the 1 member [etcd-node1.example.com]: srv-pg-db01.ru-central1.internal
+Enter FQDN of the 2 member [etcd-node2.example.com]: srv-pg-db02.ru-central1.internal
+Enter FQDN of the 3 member [etcd-node3.example.com]: srv-pg-arb.ru-central1.internal
+Enter IP address of the 1 member [10.0.0.1]: 10.129.0.29
+Enter IP address of the 2 member [10.0.0.2]: 10.128.0.5
+Enter IP address of the 3 member [10.0.0.3]: 10.129.0.27
+Enter the number of client certificates to issue [1]: 0
+Enter the location to store certificates [/tmp/ssl]: /etc/etcd/ssl
+Enter the certificate authority (CA) name [TEST-CA]: MYCA
+=============== Output ==============
+CA certificate: /etc/etcd/ssl/root.crt
+CA key: /etc/etcd/ssl/root.key
+CA info: /etc/etcd/ssl/root.info
+Member 1 server certificate: /etc/etcd/ssl/srv-pg-db01.ru-central1.internal.crt
+Member 1 server key: /etc/etcd/ssl/srv-pg-db01.ru-central1.internal.key
+Member 1 server info: /etc/etcd/ssl/srv-pg-db01.ru-central1.internal.info
+Member 2 server certificate: /etc/etcd/ssl/srv-pg-db02.ru-central1.internal.crt
+Member 2 server key: /etc/etcd/ssl/srv-pg-db02.ru-central1.internal.key
+Member 2 server info: /etc/etcd/ssl/srv-pg-db02.ru-central1.internal.info
+Member 3 server certificate: /etc/etcd/ssl/srv-pg-arb.ru-central1.internal.crt
+Member 3 server key: /etc/etcd/ssl/srv-pg-arb.ru-central1.internal.key
+Member 3 server info: /etc/etcd/ssl/srv-pg-arb.ru-central1.internal.info
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c1_copy_certs">Copy certs folder to each Etcd cluster member</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ scp -rp /etc/etcd/ssl srv-pg-db02.ru-central1.internal:/etc/etcd
+$ scp -rp /etc/etcd/ssl srv-pg-arb.ru-central1.internal:/etc/etcd
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c1_client_mtls">Enable Client-Server mTLS</h3>
+                    <h4>Edit config file</h4>
+                        <p><i>Ref. to <a href="https://etcd.io/docs/v3.5/op-guide/runtime-configuration/">docs</a>: To update the advertise client URLs of a member, simply restart that member with updated client urls flag (--advertise-client-urls) or environment variable (ETCD_ADVERTISE_CLIENT_URLS). The restarted member will self publish the updated URLs. A wrongly updated client URL will not affect the health of the etcd cluster.</i></p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+{
+export ETCD_CONF=/etc/etcd/etcd.conf
+export ETCD_HOST_FQDN=$(hostname -f)
+export ETCD_SSL_DIR=/etc/etcd/ssl
+cp ${ETCD_CONF} ${ETCD_CONF}__BKP_$(hostname -f)_$(date +%Y%m%d)T$(date +%H%M%S)
+cat &lt;&lt;EOF >> ${ETCD_CONF}
+
+### Client-Server mTLS ###
+ETCD_LISTEN_CLIENT_URLS="https://0.0.0.0:2379"
+ETCD_ADVERTISE_CLIENT_URLS="https://${ETCD_HOST_FQDN}:2379"
+ETCD_CERT_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt"
+ETCD_KEY_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key"
+ETCD_CIPHER_SUITES="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+ETCD_TRUSTED_CA_FILE="${ETCD_SSL_DIR}/root.crt"
+ETCD_CLIENT_CERT_AUTH="true"
+EOF
+}   
+                                    </code></pre>
+                            </div>
+                    <h4>Restart each Etcd cluster member (one by one)</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ sudo systemctl stop etcd && sleep 5 && sudo systemctl start etcd && systemctl status etcd 
+                                    </code></pre>
+                            </div>
+				        </div>
+                    <h4>Check result</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ ETCDCTL_API=2 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --ca-file=${ETCD_SSL_DIR}/root.crt --cert-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key member list
+----------
+214e342c31d25d8: name=srv-pg-db02 peerURLs=http://srv-pg-db02.ru-central1.internal:2380 clientURLs=https://srv-pg-db02.ru-central1.internal:2379 isLeader=false
+43cfaa679137736: name=srv-pg-arb peerURLs=http://srv-pg-arb.ru-central1.internal:2380 clientURLs=https://srv-pg-arb.ru-central1.internal:2379 isLeader=false
+6b40fb7c1a183c62: name=srv-pg-db01 peerURLs=http://srv-pg-db01.ru-central1.internal:2380 clientURLs=https://srv-pg-db01.ru-central1.internal:2379 isLeader=true
+----------
+
+$ ETCDCTL_API=2 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --ca-file=${ETCD_SSL_DIR}/root.crt --cert-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key cluster-health
+----------
+member 214e342c31d25d8 is healthy: got healthy result from https://srv-pg-db02.ru-central1.internal:2379
+member 43cfaa679137736 is healthy: got healthy result from https://srv-pg-arb.ru-central1.internal:2379
+member 6b40fb7c1a183c62 is healthy: got healthy result from https://srv-pg-db01.ru-central1.internal:2379
+cluster is healthy
+----------
+                                    </code></pre>
+                            </div>
+				        </div>
+                <h3 id="c1_peer_mtls">Enable peer connections mTLS</h3>
+                    <h4>Edit config file</h4>
+                        <p><i>Ref. to <a href="https://etcd.io/docs/v3.5/op-guide/runtime-configuration/">docs</a>: To update the advertise peer URLs of a member, first update it explicitly via member command and then restart the member. The additional action is required since updating peer URLs changes the cluster wide configuration and can affect the health of the etcd cluster.</i></p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+{
+export ETCD_CONF=/etc/etcd/etcd.conf
+export ETCD_HOST_FQDN=$(hostname -f)
+export ETCD_SSL_DIR=/etc/etcd/ssl
+cp ${ETCD_CONF} ${ETCD_CONF}__BKP_$(hostname -f)_$(date +%Y%m%d)T$(date +%H%M%S)
+cat &lt;&lt;EOF >> ${ETCD_CONF}
+
+### Peer-Peer mTLS ###
+ETCD_LISTEN_PEER_URLS="https://0.0.0.0:2380"
+ETCD_PEER_CERT_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt"
+ETCD_PEER_KEY_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key"
+ETCD_CIPHER_SUITES="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+ETCD_PEER_TRUSTED_CA_FILE="${ETCD_SSL_DIR}/root.crt"
+ETCD_PEER_CLIENT_CERT_AUTH="true"
+EOF
+}
+                                    </code></pre>
+                            </div>
+				        </div>
+                    <h4>Update each member using <code>etcdctl</code></h4>
+                        <p><b>NOTE:</b> in my case Etcd authentication for APIv3 is enabled. If your setup doesn't have configured basic authentication then remove <code>--user</code> and <code>--password</code> flags.</p>
+                        <p>Prepare update commands:</p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ export ETCD_ROOT_USER="root"
+$ export ETCD_ROOT_PWD="******"
+$ ETCDCTL_API=2 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --ca-file=${ETCD_SSL_DIR}/root.crt --cert-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key member list | awk -F'[: =]' '{print "ETCDCTL_API=3 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --cert=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key --cacert=${ETCD_SSL_DIR}/root.crt --user ${ETCD_ROOT_USER} --password ${ETCD_ROOT_PWD} member update "$1" --peer-urls=https:"$7":"$8}'
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p>Output:</p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+ETCDCTL_API=3 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --cert=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key --cacert=${ETCD_SSL_DIR}/root.crt --user ${ETCD_ROOT_USER} --password ${ETCD_ROOT_PWD} member update 214e342c31d25d8 --peer-urls=https://srv-pg-db02.ru-central1.internal:2380
+ETCDCTL_API=3 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --cert=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key --cacert=${ETCD_SSL_DIR}/root.crt --user ${ETCD_ROOT_USER} --password ${ETCD_ROOT_PWD} member update 43cfaa679137736 --peer-urls=https://srv-pg-arb.ru-central1.internal:2380
+ETCDCTL_API=3 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --cert=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key --cacert=${ETCD_SSL_DIR}/root.crt --user ${ETCD_ROOT_USER} --password ${ETCD_ROOT_PWD} member update 6b40fb7c1a183c62 --peer-urls=https://srv-pg-db01.ru-central1.internal:2380
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p>Run commands above (from any Etcd cluster member):</p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+Member 6b40fb7c1a183c62 updated in cluster  9bb0ad7d9a773ca
+Member 214e342c31d25d8 updated in cluster  9bb0ad7d9a773ca
+Member 43cfaa679137736 updated in cluster  9bb0ad7d9a773ca
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p><b>NOTE:</b> according to documentation each Etcd cluster member needs to be restarted. Meanwhile you will see below error messages in log file of each member <code>prober detected unhealthy status</code>.</p>         
+                    <h4>Restart each Etcd cluster member (one by one)</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ sudo systemctl stop etcd && sleep 5 && sudo systemctl start etcd && systemctl status etcd
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p><b>NOTE:</b> There can be below messages in log file until each member will not be restarted.</p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+Jan 07 21:21:59 srv-pg-db02.ru-central1.internal bash[5843]: {"level":"warn","ts":"2023-01-07T21:21:59.392+0300","caller":"embed/config_logging.go:169",
+"msg":"rejected connection","remote-addr":"10.129.0.29:55694","server-name":"srv-pg-db02.ru-central1.internal","error":"remote error: tls: bad certificate"}
+Jan 07 21:21:59 srv-pg-db02.ru-central1.internal bash[5843]: {"level":"warn","ts":"2023-01-07T21:21:59.396+0300","caller":"embed/config_logging.go:169",
+"msg":"rejected connection","remote-addr":"10.129.0.29:55690","server-name":"srv-pg-db02.ru-central1.internal","error":"remote error: tls: bad certificate"}
+                                    </code></pre>
+                            </div>
+				        </div>
+                    <h4>Check result</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ ETCDCTL_API=2 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --ca-file=${ETCD_SSL_DIR}/root.crt --cert-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key member list
+----------
+214e342c31d25d8: name=srv-pg-db02 peerURLs=https://srv-pg-db02.ru-central1.internal:2380 clientURLs=https://srv-pg-db02.ru-central1.internal:2379 isLeader=false
+43cfaa679137736: name=srv-pg-arb peerURLs=https://srv-pg-arb.ru-central1.internal:2380 clientURLs=https://srv-pg-arb.ru-central1.internal:2379 isLeader=true
+6b40fb7c1a183c62: name=srv-pg-db01 peerURLs=https://srv-pg-db01.ru-central1.internal:2380 clientURLs=https://srv-pg-db01.ru-central1.internal:2379 isLeader=false
+----------
+
+$ ETCDCTL_API=2 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --ca-file=${ETCD_SSL_DIR}/root.crt --cert-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key cluster-health
+----------
+member 214e342c31d25d8 is healthy: got healthy result from https://srv-pg-db02.ru-central1.internal:2379
+member 43cfaa679137736 is healthy: got healthy result from https://srv-pg-arb.ru-central1.internal:2379
+member 6b40fb7c1a183c62 is healthy: got healthy result from https://srv-pg-db01.ru-central1.internal:2379
+cluster is healthy
+----------
+                                    </code></pre>
+                            </div>
+				        </div>
+                <h3 id="c1_adhoc">(OPTIONAL) Update ad-hoc commands environment file</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ cat &lt;&lt;EOF >> ~/etcd.env
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_USER="$(hostname -f)"
+#export ETCD_USER="patroni_etcd_usr"
+export ETCDCONF="/etc/etcd/etcd.conf"
+export ETCD_SSL_DIR="/home/postgres/ssl"
+
+alias etcdver='etcd --version'
+alias etcdconf='view \${ETCDCONF}'
+alias etcdlog='sudo journalctl -u etcd | view -'
+alias etcdlogtail='sudo journalctl -u etcd -f -n 1000'
+alias etcdlogerr="sudo journalctl -u etcd -f -n 1000 | egrep -i 'WARNING|ERROR|FATAL'"
+
+#apiV3
+export ETCD_SSL_ARGS_V3="--endpoints=https://\${ETCD_HOST_FQDN}:2379 --cert=\${ETCD_SSL_DIR}/\${ETCD_USER}.crt --key=\${ETCD_SSL_DIR}/\${ETCD_USER}.key --cacert=\${ETCD_SSL_DIR}/root.crt"
+alias etcdlist='ETCDCTL_API=3 etcdctl \${ETCD_SSL_ARGS_V3} endpoint status --cluster -w table'
+
+#apiV2
+export ETCD_SSL_ARGS_V2="--endpoints=https://\${ETCD_HOST_FQDN}:2379 --ca-file=\${ETCD_SSL_DIR}/root.crt --cert-file=\${ETCD_SSL_DIR}/\${ETCD_USER}.crt --key-file=\${ETCD_SSL_DIR}/\${ETCD_USER}.key"
+alias etcdmembers='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} member list'
+alias etcdhealth='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} cluster-health'
+alias etcdls='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} ls /service/ --recursive'
+alias etcdgetv2key='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} get '
+
+#Move Etcd Leader
+alias etcdmove="ETCDCTL_API=3 etcdctl \${ETCD_SSL_ARGS_V3} --endpoints=https:\$(ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} member list | grep -i 'isleader=true' | awk  -F'[: =]' '{print \$7}'):2379 move-leader"
+EOF
+                                </code></pre>
+                        </div>
+				    </div>
+            </section>
+
+			<section id="c2" class="post-section">
+				<h2>Etcd cluster used by Patroni</h2>
+                <p><b>NOTE:</b> <i>In this scenario I suppose Etcd cluster is used by Patroni only and it's okay to re-create it from scratch. If you have to save your Etcd data then <a href="#c1">previous</a> instruction.</i></p>
+                <h3 id="c2_setup">Check current setup</h3>
+                    <h4>Etcd</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ ETCDCTL_API=2 etcdctl --endpoints=http://$(hostname -f):2379 member list
+----------
+214e342c31d25d8: name=srv-pg-db02 peerURLs=http://srv-pg-db02.ru-central1.internal:2380 clientURLs=http://srv-pg-db02.ru-central1.internal:2379 isLeader=false
+43cfaa679137736: name=srv-pg-arb peerURLs=http://srv-pg-arb.ru-central1.internal:2380 clientURLs=http://srv-pg-arb.ru-central1.internal:2379 isLeader=false
+6b40fb7c1a183c62: name=srv-pg-db01 peerURLs=http://srv-pg-db01.ru-central1.internal:2380 clientURLs=http://srv-pg-db01.ru-central1.internal:2379 isLeader=true
+----------
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p><b>NOTE:</b> both client and peers traffic use http protocol.</p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ etcd --version
+----------
+etcd Version: 3.5.5
+Git SHA: 19002cfc6
+Go Version: go1.16.15
+Go OS/Arch: linux/amd64
+----------
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p>Check if basic authentication for API_2 is enabled:</p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ curl -X GET http://127.0.0.1:2379/v2/auth/enable
+----------
+{"enabled":false}
+----------
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p>Check if basic authentication for API_3 is enabled:</p>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                    <pre><code>
+$ curl -X POST http://127.0.0.1:2379/v3/auth/status
+----------
+{"header":{"cluster_id":"701166089172120522","member_id":"7728453471000083554","revision":"1","raft_term":"2"},"authRevision":"1"}
+----------
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p><b>NOTE:</b> basic auth for apiV2, apiV3 is not enabled (yet).</p>
+
+                    <h4>Patroni</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ patronictl -c /etc/patroni/postgres.yml list
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 36 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 36 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+
+$ patroni --version
+----------
+patroni 2.1.4
+----------
+
+$ grep -A1 "etcd" /etc/patroni/postgres.yml
+---------
+etcd:
+    hosts:     srv-pg-db01.ru-central1.internal:2379,srv-pg-db02.ru-central1.internal:2379,srv-pg-arb.ru-central1.internal:2379
+---------
+                                    </code></pre>
+                            </div>
+				        </div>
+                        <p><b>NOTE:</b> in this case patroni uses etcd apiV2.</p>
+
+                <h3 id="c2_gen_certs">Generate new certificates</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ {
+mv ~/ssl ~/ssl___BKP_$(hostname -f)_$(date +%Y%m%d)T$(date +%H%M%S) && \
+chmod 700 ~/etcd-certs-generator.sh && \
+~/etcd-certs-generator.sh
+}
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p>Script output example:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+=============== Input ===============
+Enter the number of servers in your Etcd cluster [3]:
+Enter FQDN of the 1 member [etcd-node1.example.com]: srv-pg-db01.ru-central1.internal
+Enter FQDN of the 2 member [etcd-node2.example.com]: srv-pg-db02.ru-central1.internal
+Enter FQDN of the 3 member [etcd-node3.example.com]: srv-pg-arb.ru-central1.internal
+Enter IP address of the 1 member [10.0.0.1]: 10.129.0.29
+Enter IP address of the 2 member [10.0.0.2]: 10.128.0.5
+Enter IP address of the 3 member [10.0.0.3]: 10.129.0.27
+Enter the number of client certificates to issue [1]: 1
+Enter CN for the 1 client certificate [etcd-client]: patroni_etcd_usr
+Enter the location to store certificates [/tmp/ssl]: /home/postgres/ssl
+Enter the certificate authority (CA) name [TEST-CA]:
+=============== Output ==============
+CA certificate: /home/postgres/ssl/root.crt
+CA key: /home/postgres/ssl/root.key
+CA info: /home/postgres/ssl/root.info
+Member 1 server certificate: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.crt
+Member 1 server key: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.key
+Member 1 server info: /home/postgres/ssl/srv-pg-db01.ru-central1.internal.info
+Member 2 server certificate: /home/postgres/ssl/srv-pg-db02.ru-central1.internal.crt
+Member 2 server key: /home/postgres/ssl/srv-pg-db02.ru-central1.internal.key
+Member 2 server info: /home/postgres/ssl/srv-pg-db02.ru-central1.internal.info
+Member 3 server certificate: /home/postgres/ssl/srv-pg-arb.ru-central1.internal.crt
+Member 3 server key: /home/postgres/ssl/srv-pg-arb.ru-central1.internal.key
+Member 3 server info: /home/postgres/ssl/srv-pg-arb.ru-central1.internal.info
+Client 1 certificate: /home/postgres/ssl/patroni_etcd_usr.crt
+Client 1 key: /home/postgres/ssl/patroni_etcd_usr.key
+Client 1 info: /home/postgres/ssl/patroni_etcd_usr.info
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_cope_certs">Copy certificates to each server</h3>
+                    <p><b>NOTE:</b>  replace <code>ETCD_CERTS_SOURCE_SERVER</code> variable value and setup passwordless ssh between servers (optional).</p>
+                    <p>Run below on server on which the certificates were generated:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ sudo cp -rp /home/postgres/ssl /etc/etcd/ && sudo chown -R etcd:etcd /etc/etcd/ssl && sudo chmod 755 /etc/etcd
+$ sudo cp -rp /home/postgres/ssl /tmp/ && sudo chown -R $(whoami):$(whoami) /tmp/ssl
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p>Run on each server:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ export ETCD_CERTS_SOURCE_SERVER="srv-pg-db01.ru-central1.internal"
+$ sudo mv /home/postgres/ssl /home/postgres/ssl___BKP_$(hostname -f)_$(date +%Y%m%d)T$(date +%H%M%S)
+$ scp -rp $(whoami)@${ETCD_CERTS_SOURCE_SERVER}:/tmp/ssl /tmp && sudo cp -rp /tmp/ssl /home/postgres/ && sudo chown -R postgres:postgres /home/postgres/ssl && sudo rm -rf /tmp/ssl
+$ scp -rp $(whoami)@${ETCD_CERTS_SOURCE_SERVER}:/tmp/ssl /tmp && sudo cp -rp /tmp/ssl /etc/etcd/ && sudo chown -R etcd:etcd /etc/etcd/ssl && sudo chmod 750 /etc/etcd && sudo rm -rf /tmp/ssl
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p><b>NOTE:</b> In my case I had <code>~/ssl</code> folder with old server certificates used by Postgres. Once I've generated new ones there can be some problems with accessing database through certificate authentication until you make the <code>pg_ctl -D $PGDATA reload</code> so new CA "loaded" into a database. Otherwise you can see following messages in database log file <code><i>LOG:  could not accept SSL connection: tlsv1 alert unknown ca</i></code>.</p>
+                    <p>Optional step to avoid issues described above:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ patronictl -c /etc/patroni/postgres.yml reload test_cluster
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 36 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 36 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+Are you sure you want to reload members srv-pg-db01.ru-central1.internal, srv-pg-db02.ru-central1.internal? [y/N]: y
+Reload request received for member srv-pg-db01.ru-central1.internal and will be processed within 10 seconds
+Reload request received for member srv-pg-db02.ru-central1.internal and will be processed within 10 seconds
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_partoni_pause">Disable Patroni autofailover mode (pause mode)</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ patronictl -c /etc/patroni/postgres.yml pause
+---------
+Success: cluster management is paused
+---------
+
+$ patronictl -c /etc/patroni/postgres.yml list
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 36 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 36 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+ Maintenance mode: on
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_stop_patroni">Stop Patroni on database servers</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+sudo systemctl stop patroni
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_remove_etcd">Stop and remove current Etcd cluster</h3>
+                    <p><b>NOTE:</b> replace <code>ETCD_DATA_DIR</code> variable value.</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ export ETCD_DATA_DIR="/var/lib/etcd"
+$ sudo systemctl stop etcd && sudo rm -rf ${ETCD_DATA_DIR}
+                                </code></pre>
+                        </div>
+				    </div>
+
+
+                <h3 id="c2_etcd_config">Edit Etcd config to use mTLS</h3>
+                    <p><b>NOTE:</b> replace <code>ETCD_CONF</code> variable value.</p>
+                    <p>Replace <code>http</code> to <code>https</code> in old config file:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ export ETCD_DATA_DIR="/var/lib/etcd"
+$ sudo systemctl stop etcd && sudo rm -rf ${ETCD_DATA_DIR}
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p><b>NOTE:</b> replace <code>ETCD_HOST_FQDN</code>, <code>ETCD_CONF</code>, <code>ETCD_SSL_DIR</code> variable value.</p>
+                    <p>Add variables related to mTLS:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ {
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_CONF="/etc/etcd/etcd.conf"
+export ETCD_SSL_DIR="/etc/etcd/ssl"
+cp ${ETCD_CONF} ${ETCD_CONF}___BKP_$(hostname -f)_$(date +%Y%m%d)T$(date +%H%M%S)
+cat &lt;&lt;EOF >> ${ETCD_CONF}
+
+### Client-Server mTLS ###
+ETCD_LISTEN_CLIENT_URLS="https://0.0.0.0:2379"
+ETCD_ADVERTISE_CLIENT_URLS="https://${ETCD_HOST_FQDN}:2379"
+ETCD_CERT_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt"
+ETCD_KEY_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key"
+ETCD_CIPHER_SUITES="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+ETCD_TRUSTED_CA_FILE="${ETCD_SSL_DIR}/root.crt"
+ETCD_CLIENT_CERT_AUTH="true"
+
+### Peer-Peer mTLS ###
+ETCD_LISTEN_PEER_URLS="https://0.0.0.0:2380"
+ETCD_PEER_CERT_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt"
+ETCD_PEER_KEY_FILE="${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key"
+ETCD_CIPHER_SUITES="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+ETCD_PEER_TRUSTED_CA_FILE="${ETCD_SSL_DIR}/root.crt"
+ETCD_PEER_CLIENT_CERT_AUTH="true"
+EOF
+}
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_start_etcd">Start Etcd cluster</h3>
+                    <p><b>NOTE:</b> replace <code>ETCD_DATA_DIR</code> variable value.</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ export ETCD_DATA_DIR="/var/lib/etcd"
+$ sudo mkdir -p ${ETCD_DATA_DIR} && sudo chmod 700 ${ETCD_DATA_DIR} && sudo chown -R etcd:etcd ${ETCD_DATA_DIR} && sudo systemctl stop etcd && sleep 5 && sudo systemctl start etcd && systemctl status etcd
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p><b>NOTE:</b> replace <code>ETCD_HOST_FQDN</code>, <code>ETCD_CONF</code>, <code>ETCD_SSL_DIR</code> variable value.</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ {
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_CONF="/etc/etcd/etcd.conf"
+export ETCD_SSL_DIR="/etc/etcd/ssl"
+ETCDCTL_API=2 etcdctl --endpoints=https://${ETCD_HOST_FQDN}:2379 --ca-file=${ETCD_SSL_DIR}/root.crt --cert-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key member list
+}
+------
+9bf7cf2d10f76057: name=srv-pg-db01 peerURLs=https://srv-pg-db01.ru-central1.internal:2380 clientURLs=https://srv-pg-db01.ru-central1.internal:2379 isLeader=false
+a903aa5dd5b48d20: name=srv-pg-db02 peerURLs=https://srv-pg-db02.ru-central1.internal:2380 clientURLs=https://srv-pg-db02.ru-central1.internal:2379 isLeader=false
+f4188b4c8dacdebb: name=srv-pg-arb peerURLs=https://srv-pg-arb.ru-central1.internal:2380 clientURLs=https://srv-pg-arb.ru-central1.internal:2379 isLeader=true
+---------
+
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_enable_apiv2">Enable Etcd apiV2 basic authentication</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+{
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_CONF="/etc/etcd/etcd.conf"
+export ETCD_SSL_DIR="/home/postgres/ssl"
+export ETCD_ROOT_PWD="root123v2"
+export ETCD_NEW_USR="patroni_etcd_usr"
+export ETCD_NEW_USR_PWD="patroni123"
+export ETCD_NEW_ROLE="patroni_role"
+export ETCD_SSL_CMD="--endpoints=https://${ETCD_HOST_FQDN}:2379 --ca-file=${ETCD_SSL_DIR}/root.crt --cert-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key-file=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key"
+ETCDCTL_API=2 etcdctl ${ETCD_SSL_CMD} user add root:${ETCD_ROOT_PWD}
+ETCDCTL_API=2 etcdctl ${ETCD_SSL_CMD} user add ${ETCD_NEW_USR}:${ETCD_NEW_USR_PWD}
+ETCDCTL_API=2 etcdctl ${ETCD_SSL_CMD} role add ${ETCD_NEW_ROLE}
+ETCDCTL_API=2 etcdctl ${ETCD_SSL_CMD} role grant ${ETCD_NEW_ROLE} --readwrite --path=/service/*
+ETCDCTL_API=2 etcdctl ${ETCD_SSL_CMD} user grant --roles=${ETCD_NEW_ROLE} ${ETCD_NEW_USR}
+ETCDCTL_API=2 etcdctl ${ETCD_SSL_CMD} auth enable
+echo "${ETCD_ROOT_PWD}" | ETCDCTL_API=2 etcdctl ${ETCD_SSL_CMD} -u root role remove guest
+}
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p>Check:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ {
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_SSL_DIR="/home/postgres/ssl"
+curl -X GET --cacert ${ETCD_SSL_DIR}/root.crt --cert ${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key ${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key https://${ETCD_HOST_FQDN}:2379/v2/auth/enable
+}
+----------
+{"enabled":true}
+----------
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_enable_apiv3">Enable Etcd apiV3 basic authentication</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ {
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_CONF="/etc/etcd/etcd.conf"
+export ETCD_SSL_DIR="/home/postgres/ssl"
+export ETCD_ROOT_PWD="root123v3"
+export ETCD_SSL_CMD="--endpoints=https://${ETCD_HOST_FQDN}:2379 --cacert=${ETCD_SSL_DIR}/root.crt --cert=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key"
+ETCDCTL_API=3 etcdctl ${ETCD_SSL_CMD} user add root:root123
+ETCDCTL_API=3 etcdctl ${ETCD_SSL_CMD} user grant root root
+ETCDCTL_API=3 etcdctl ${ETCD_SSL_CMD} auth enable
+}
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p>Check:</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ {
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_SSL_DIR="/home/postgres/ssl"
+export ETCD_SSL_CMD="--endpoints=https://${ETCD_HOST_FQDN}:2379 --cacert=${ETCD_SSL_DIR}/root.crt --cert=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.crt --key=${ETCD_SSL_DIR}/${ETCD_HOST_FQDN}.key --user root"
+ETCDCTL_API=3 etcdctl ${ETCD_SSL_CMD} auth status
+}
+----------
+Authentication Status: true
+AuthRevision: 3
+----------
+                                </code></pre>
+                        </div>
+				    </div>
+                    <p><b>NOTE:</b> looks like <code>auth status</code> command is available since etcd v3.5.</p>
+                    <p><b>NOTE:</b> in my setup Patroni will use Etcd apiV2, but I enabled basic auth for apiV3 to avoid any unauthorized access.</p>
+
+                <h3 id="c2_patroni_config">Edit Patroni config</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ cp /etc/patroni/postgres.yml /etc/patroni/postgres.yml___BKP_$(hostname -f)_$(date +%Y%m%d)T$(date +%H%M%S)
+$ grep -A5 "etcd:" /etc/patroni/postgres.yml
+----------
+etcd:
+    hosts:     srv-pg-db01.ru-central1.internal:2379,srv-pg-db02.ru-central1.internal:2379,srv-pg-arb.ru-central1.internal:2379
+    protocol:  https
+    cacert:    /home/postgres/ssl/root.crt
+    cert:      /home/postgres/ssl/patroni_etcd_usr.crt
+    key:       /home/postgres/ssl/patroni_etcd_usr.key
+----------
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_thirdparty_config">Edit third-party tools config files</h3>
+                    <h4>Vip-Manager example</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+----------
+...
+...
+...
+dcs-endpoints:
+  - https://srv-pg-db01.ru-central1.internal:2379
+  - https://srv-pg-db02.ru-central1.internal:2379
+  - https://srv-pg-arb.ru-central1.internal:2379
+etcd-ca-file: /home/postgres/ssl/root.crt
+etcd-cert-file: /home/postgres/ssl/patroni_etcd_usr.crt
+etcd-key-file: /home/postgres/ssl/patroni_etcd_usr.key
+...
+...
+...
+----------
+
+$ systemctl restart vip-manager
+                                    </code></pre>
+                            </div>
+				        </div>
+
+                    <h4>Confd example</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ view /etc/systemd/system/confd.service
+----------
+ExecStart=/opt/confd/bin/confd -watch -backend etcd -node https://127.0.0.1:2379 -client-ca-keys /home/postgres/ssl/root.crt -client-cert /home/postgres/ssl/patroni_etcd_usr.crt -client-key /home/postgres/ssl/patroni_etcd_usr.key
+----------
+
+$ systemctl daemon-reload
+$ systemctl restart confd
+                                    </code></pre>
+                            </div>
+				        </div>
+
+                <h3 id="c2_start_patroni_master">Start Patroni on Master</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ sudo systemctl start patroni
+$ patronictl -c /etc/patroni/postgres.yml list
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------+---------+----+-----------+
+| Member                           | Host                             | Role   | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader | running | 36 |           |
++----------------------------------+----------------------------------+--------+---------+----+-----------+
+ Maintenance mode: on
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_start_patroni_replica">Start Patroni on Replicas</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ sudo systemctl start patroni
+$ patronictl -c /etc/patroni/postgres.yml list
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 36 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 36 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+ Maintenance mode: on
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_patroni_resume">Enable Patroni autofailover (resume)</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ patronictl -c /etc/patroni/postgres.yml resume
+----------
+Success: cluster management is resumed
+----------
+
+$ patronictl -c /etc/patroni/postgres.yml list
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 36 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 36 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+                                </code></pre>
+                        </div>
+				    </div>
+
+                <h3 id="c2_check_logs">Check log files for error messages</h3>
+                    <h4>Patroni</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ sudo journalctl -u patroni -n 100 -f
+$ sudo journalctl -u patroni -n 1000 -f | egrep -i 'error|fatal|warn'
+                                    </code></pre>
+                            </div>
+				        </div>
+                    <h4>Etcd</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ sudo journalctl -u etcd -n 100 -f
+$ sudo journalctl -u etcd -n 1000 -f | egrep -i 'error|fatal|warn'
+                                    </code></pre>
+                            </div>
+				        </div>
+                    <h4>(OPTIONAL) Confd</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ sudo journalctl -u confd -n 100 -f
+$ sudo journalctl -u confd -n 1000 -f | egrep -i 'error|fatal|warn'
+                                    </code></pre>
+                            </div>
+				        </div>
+                    <h4>(OPTIONAL) Vip-Manager</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ sudo journalctl -u vip-manager -n 100 -f
+$ sudo journalctl -u vip-manager -n 1000 -f | egrep -i 'error|fatal|warn'
+                                    </code></pre>
+                            </div>
+				        </div>
+
+                <h3 id="c2_switchover">(OPTIONAL) Take a Postgres switchover and switchback using Patroni</h3>
+                    <h4>Switchover</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ patronictl -c /etc/patroni/postgres.yml switchover test_cluster
+
+Master [srv-pg-db01.ru-central1.internal]:
+Candidate ['srv-pg-db02.ru-central1.internal'] []:
+When should the switchover take place (e.g. 2023-01-10T19:39 )  [now]:
+Current cluster topology
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 36 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 36 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+Are you sure you want to switchover cluster test_cluster, demoting current master srv-pg-db01.ru-central1.internal? [y/N]: y
+2023-01-10 18:39:09.65637 Successfully switched over to "srv-pg-db02.ru-central1.internal"
++ Cluster: test_cluster (7150267844858450339) ------------------------+---------+---------+----+-----------+
+| Member                           | Host                             | Role    | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+---------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Replica | stopped |    |   unknown |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Leader  | running | 36 |           |
++----------------------------------+----------------------------------+---------+---------+----+-----------+
+
+
+$ patronictl -c /etc/patroni/postgres.yml list
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Sync Standby | running | 37 |         0 |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Leader       | running | 37 |           |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+                                    </code></pre>
+                            </div>
+				        </div>
+                    <h4>Switchback</h4>
+				        <div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+									<pre><code>
+$ patronictl -c /etc/patroni/postgres.yml switchover test_cluster
+
+Master [srv-pg-db02.ru-central1.internal]:
+Candidate ['srv-pg-db01.ru-central1.internal'] []:
+When should the switchover take place (e.g. 2023-01-10T19:40 )  [now]:
+Current cluster topology
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Sync Standby | running | 37 |         0 |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Leader       | running | 37 |           |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+Are you sure you want to switchover cluster test_cluster, demoting current master srv-pg-db02.ru-central1.internal? [y/N]: y
+2023-01-10 18:40:45.21883 Successfully switched over to "srv-pg-db01.ru-central1.internal"
++ Cluster: test_cluster (7150267844858450339) ------------------------+---------+---------+----+-----------+
+| Member                           | Host                             | Role    | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+---------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader  | running | 37 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Replica | stopped |    |   unknown |
++----------------------------------+----------------------------------+---------+---------+----+-----------+
+
+$ patronictl -c /etc/patroni/postgres.yml list
+
++ Cluster: test_cluster (7150267844858450339) ------------------------+--------------+---------+----+-----------+
+| Member                           | Host                             | Role         | State   | TL | Lag in MB |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+| srv-pg-db01.ru-central1.internal | srv-pg-db01.ru-central1.internal | Leader       | running | 38 |           |
+| srv-pg-db02.ru-central1.internal | srv-pg-db02.ru-central1.internal | Sync Standby | running | 38 |         0 |
++----------------------------------+----------------------------------+--------------+---------+----+-----------+
+                                    </code></pre>
+                            </div>
+				        </div>
+
+                <h3 id="c2_adhoc">(OPTIONAL) Create environment file with ad-hoc commands</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+$ cat &lt;&lt;EOF >> ~/etcd.env
+export ETCD_HOST_FQDN="$(hostname -f)"
+export ETCD_USER="patroni_etcd_usr"
+export ETCDCONF="/etc/etcd/etcd.conf"
+export ETCD_SSL_DIR="/home/postgres/ssl"
+
+alias etcdver='etcd --version'
+alias etcdconf='view \${ETCDCONF}'
+alias etcdlog='sudo journalctl -u etcd | view -'
+alias etcdlogtail='sudo journalctl -u etcd -f -n 1000'
+alias etcdlogerr="sudo journalctl -u etcd -f -n 1000 | egrep -i 'WARNING|ERROR|FATAL'"
+
+#apiV3
+export ETCD_SSL_ARGS_V3="--endpoints=https://\${ETCD_HOST_FQDN}:2379 --cert=\${ETCD_SSL_DIR}/\${ETCD_USER}.crt --key=\${ETCD_SSL_DIR}/\${ETCD_USER}.key --cacert=\${ETCD_SSL_DIR}/root.crt"
+alias etcdlist='ETCDCTL_API=3 etcdctl \${ETCD_SSL_ARGS_V3} endpoint status --cluster -w table'
+
+#apiV2
+export ETCD_SSL_ARGS_V2="--endpoints=https://\${ETCD_HOST_FQDN}:2379 --ca-file=\${ETCD_SSL_DIR}/root.crt --cert-file=\${ETCD_SSL_DIR}/\${ETCD_USER}.crt --key-file=\${ETCD_SSL_DIR}/\${ETCD_USER}.key"
+alias etcdmembers='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} member list'
+alias etcdhealth='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} cluster-health'
+alias etcdls='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} ls /service/ --recursive'
+alias etcdgetv2key='ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} get '
+
+#Move Etcd Leader
+alias etcdmove="ETCDCTL_API=3 etcdctl \${ETCD_SSL_ARGS_V3} --endpoints=https:\$(ETCDCTL_API=2 etcdctl \${ETCD_SSL_ARGS_V2} member list | grep -i 'isleader=true' | awk  -F'[: =]' '{print \$7}'):2379 move-leader"
+EOF
+                                </code></pre>
+                        </div>
+				    </div>
+			</section>
+
+			<section id="script" class="post-section">
+				<h2>Self-signed certificates generator</h2>
+                <p><a href="./files/etcd-certs-generator.sh">Download</a></p>
+			</section>
+
+            <div class="back-to-top">
+                <a href="#top">↑ Back to Top</a>
+            </div>
+        </article>
+    </main>
+
+    <footer class="disclaimer">
+        <hr />
+        <p>
+            DISCLAIMER:<br>
+            The information presented here is intended for informational purposes only. The author assumes no responsibility or liability for any damages resulting from the application of the techniques described herein. Use this content at your own risk.<br>
+            Always create backups and test configurations thoroughly before implementing them in live environments.
+        </p>
+    </footer>
+</body>
+</html>
