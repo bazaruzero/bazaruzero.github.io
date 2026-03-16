@@ -125,6 +125,7 @@
                         <a href="#issues">Issue / Fix</a>
                             <ul>
                                 <li><a href="#postgisissue">Postgis create extension issue</a></li>
+                                <li><a href="#oemtopactivity">EM 13.2: Database Performance -> Top Activity Page Reports JAVA.LANG.NULLPOINTEREXCEPTION</a></li>
                             </ul>
                     </li>
                 </ul>
@@ -538,8 +539,40 @@ psql> SELECT pg_reload_conf();
                                 </div>
 				    </div>
 
-            </section>
+                <h3 id="oemtopactivity">EM 13.2: Database Performance -> Top Activity Page Reports JAVA.LANG.NULLPOINTEREXCEPTION</h3>
+                    <p><u><b>ISSUE:</b></u></p>
+                    <p>After DB Plug-in upgrade to version 13.2.2 on OMS 13cR2 "java.lang.NullPointerException" error message come up from time to time when trying to open "Database Peformance" - "Top Activity".</p>
+                    <p>Docs:</p>
+                        <ul><li><i>After Applying 13.2 OMS Bundlepatch, Getting 'Null Pointer Exception' Error On Top Activity Page (Doc ID 2241253.1).</i></li></ul>
+                    <p>Reason:</p>
+                        <ul><li><i>Hitting Bug 25455462 - ERROR JAVA.LANG.NULLPOINTEREXCEPTION OEM 13c PERFORMANCE>TOP ACTIVITY</i></li></ul>
+                    <p><u><b>FIX:</b></u></p>
+                    <p>Solution:</p>
+                        <ul>
+                            <li><i>For the 13.2.2.0.0 DB plugin, the fix is included in the 13.2.2.0.170930 (OMS Side System Patch 26716235) and above patch at the OMS. For details, refer to: "Note 2275361.1 : Enterprise Manager Cloud Control Database Plugin 13.2.2.0 Bundle Patch Bug List".</i></li>
+                            <li><i>For the 13.2.1.0.0 DB plugin, the fix is included in the 13.2.1.0.171031 (OMS Side System Patch 26955301) and above patch at the OMS. For details, refer to: "Note 2219854.1 : Enterprise Manager Cloud Control Database Plugin 13.2.1.0 Bundle Patch Bug List".</i></li>
+                        </ul>
+                    <p>Workaround:</p>
+				    <div class="specs-container">
+                                <div class="code-block">
+                                    <span class="code-language"></span>
+                                    <pre><code>
+>>> oracle
+ 
+cd <OMS_HOME>/bin
+./emctl set property -name oracle.sysman.db.perf.reposconn.inactivity_timeout -value "0"
+./emctl set property -name oracle.sysman.db.perf.reposconn.abandoned_connection_timeout -value "0"
+./emctl stop oms -all
+./emctl start oms
+./emctl get property -name oracle.sysman.db.perf.reposconn.inactivity_timeout
+./emctl get property -name oracle.sysman.db.perf.reposconn.abandoned_connection_timeout
+Share this:
+                                    </code></pre>
+                                </div>
+				    </div>
 
+
+            </section>
 
             <div class="back-to-top">
                 <a href="#top">↑ Back to Top</a>
