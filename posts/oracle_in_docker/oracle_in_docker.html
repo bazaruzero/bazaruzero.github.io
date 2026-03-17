@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBA Notes - Oracle Database in Docker</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <h1><a href="../../index.html">DBA Notes</a></h1>
+        <a href="https://github.com/bazaruzero" class="github-link" target="_blank" 
+           rel="noopener noreferrer" aria-label="GitHub profile">
+            <svg width="32" height="32" viewBox="0 0 98 96" fill="currentColor">
+                <title>GitHub Logo</title>
+                <path d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
+            </svg>
+        </a>
+    </header>
+
+    <nav class="categories" aria-label="Blog categories">
+        <a href="../../categories/postgresql.html">PostgreSQL</a>
+        <a href="../../categories/oracle.html">Oracle</a>
+        <a href="../../categories/tools.html">Tools</a>
+        <a href="../../categories/theory_and_experiments.html">T&E</a>
+        <a href="../../categories/misc.html">Misc</a>
+        <a href="../../categories/bookmarks.html">Bookmarks</a>
+    </nav>
+
+    <main class="main-content">
+        <article class="blog-post">
+            <h1 class="post-title">Oracle Database in Docker</h1>         
+
+            <nav class="table-of-contents">
+                <h2>Table of Contents</h2>
+                <ul>
+                    <li><a href="#docs">Docs</a></li>
+                    <li><a href="#testenv">Test environment</a></li>
+                    <li><a href="#dockerinstall">Docker Install</a></li>
+                    <li><a href="#orclsoft">Download Oracle Database Software</a></li>
+                    <li><a href="#orclinstall">Install Oracle</a></li>
+                        <ul>
+                            <li><a href="#clonedockerimage">Clone Oracle Docker Images Repo</a></li>
+                            <li><a href="#copysoft">Copy Oracle Software</a></li>
+                            <li><a href="#responsefiles">Prepare Response Files</a></li>
+                            <li><a href="#buildimage">Build Docker Image</a></li>
+                            <li><a href="#startcontainer">Start Docker Container</a></li>
+                            <li><a href="#monitordbcreate">Monitor Database Creation</a></li>
+                            <li><a href="#dbstatus">Check Database Status</a></li>
+                            <li><a href="#testable">Create Test Table</a></li>
+                            <li><a href="#restartcontainer">Restart Docker Container</a></li>
+                        </ul>
+                    <li><a href="#oemcheck">Check Access to OEM Express</a></li>
+                    <li><a href="#usefulcmd">Useful Docker commands</a></li>
+                </ul>
+            </nav>
+
+			<section id="docs" class="post-section">
+				<h2>Docs</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li><a href="https://github.com/oracle/docker-images/blob/main/OracleDatabase/SingleInstance/README.md">Oracle Database container images</a></li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="testenv" class="post-section">
+				<h2>Test environment</h2>
+                <p><b>Model:</b> Lenovo ThinkPad T480</p>
+                <p><b>RAM:</b> 16 GB</p>
+                <p><b>CPU:</b>  Intel® Core™ i7-8650U x 8</p>
+                <p><b>DISK:</b> LITEONIT LCS-256M6S 2.5 7mm 256GB</p>
+                <p><b>OS:</b> Ubuntu 24.04.2 LTS</p>
+			</section>
+
+			<section id="dockerinstall" class="post-section">
+				<h2>Docker Install</h2>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ sudo apt update
+$ sudo apt upgrade -y
+$ sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+$ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+$ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+$ sudo apt update
+$ sudo apt install -y docker-ce docker-ce-cli containerd.io
+$ sudo usermod -aG docker $USER
+$ newgrp docker
+$ docker --version
+Docker version 28.0.4, build b8034c0
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="orclsoft" class="post-section">
+				<h2>Download Oracle Database Software</h2>
+				<p><a href="https://www.oracle.com/cis/database/technologies/oracle19c-linux-downloads.html?er=228088">Oracle Database 19c (19.3)</a></p>
+			</section>
+
+			<section id="orclinstall" class="post-section">
+				<h2>Install Oracle</h2>
+                <h3 id="clonedockerimage">Clone Oracle Docker Images Repo</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ git clone https://github.com/oracle/docker-images.git
+$ mkdir -p docker-images/OracleDatabase/SingleInstance/19.3.0
+$ cd ~/docker-images/OracleDatabase/SingleInstance/dockerfiles/19.3.0
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="copysoft">Copy Oracle Software</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ cp ~/Downloads/LINUX.X64_193000_db_home.zip .
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="responsefiles">Prepare Response Files</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ cd ~/docker-images/OracleDatabase/SingleInstance/dockerfiles/19.3.0
+
+$ grep -v ^# db_inst.rsp | grep -v ^$
+
+oracle.install.responseFileVersion=/oracle/install/rspfmt_dbinstall_response_schema_v19.0.0
+oracle.install.option=INSTALL_DB_SWONLY
+UNIX_GROUP_NAME=dba
+INVENTORY_LOCATION=###ORACLE_BASE###/oraInventory
+ORACLE_HOME=###ORACLE_HOME###
+ORACLE_BASE=###ORACLE_BASE###
+oracle.install.db.InstallEdition=###ORACLE_EDITION###
+oracle.install.db.OSDBA_GROUP=dba
+oracle.install.db.OSOPER_GROUP=dba
+oracle.install.db.OSBACKUPDBA_GROUP=dba
+oracle.install.db.OSDGDBA_GROUP=dba
+oracle.install.db.OSKMDBA_GROUP=dba
+oracle.install.db.OSRACDBA_GROUP=dba
+SECURITY_UPDATES_VIA_MYORACLESUPPORT=false
+DECLINE_SECURITY_UPDATES=true
+
+$ grep -v ^# dbca.rsp.tmpl | grep -v ^$
+
+responseFileVersion=/oracle/assistants/rspfmt_dbca_response_schema_v19.0.0
+gdbName=###ORACLE_SID###
+sid=###ORACLE_SID###
+createAsContainerDatabase=true
+numberOfPDBs=1
+pdbName=###ORACLE_PDB###
+pdbAdminPassword=###ORACLE_PWD###
+templateName=General_Purpose.dbc
+sysPassword=###ORACLE_PWD###
+systemPassword=###ORACLE_PWD###
+emConfiguration=DBEXPRESS
+emExpressPort=5500
+dbsnmpPassword=###ORACLE_PWD###
+characterSet=###ORACLE_CHARACTERSET###
+nationalCharacterSet=AL16UTF16
+initParams=audit_trail=none,audit_sys_operations=false
+automaticMemoryManagement=FALSE
+totalMemory=2048
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="buildimage">Build Docker Image</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ cd ~/docker-images/OracleDatabase/SingleInstance/dockerfiles
+
+$ ./buildContainerImage.sh -v 19.3.0 -e
+
+  Oracle Database container image for 'ee' version 19.3.0 is ready to be extended: 
+    --> oracle/database:19.3.0-ee
+  Build completed in 299 seconds.
+
+$ docker images
+
+REPOSITORY        TAG         IMAGE ID       CREATED              SIZE
+oracle/database   19.3.0-ee   4ec47ae22833   About a minute ago   6.54GB
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="startcontainer">Start Docker Container</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ sudo mkdir -p /opt/oracle/oradata
+
+$ sudo chown -R 54321:54321 /opt/oracle/oradata
+
+$ sudo chmod -R 775 /opt/oracle/oradata
+
+$ docker run --name oracle19c \
+-p 1521:1521 \
+-p 5500:5500 \
+-e ORACLE_PWD=password \
+-v /opt/oracle/oradata:/opt/oracle/oradata \
+-d oracle/database:19.3.0-ee
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="monitordbcreate">Monitor Database Creation</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ docker logs -f oracle19c
+
+...
+#########################
+DATABASE IS READY TO USE!
+#########################
+The following output is now a tail of the alert.log:
+ORCLPDB1(3):
+ORCLPDB1(3):XDB initialized.
+2025-04-18T17:20:52.118877+00:00
+ALTER SYSTEM SET control_files='/opt/oracle/oradata/ORCLCDB/control01.ctl' SCOPE=SPFILE;
+2025-04-18T17:20:52.135672+00:00
+ALTER SYSTEM SET local_listener='' SCOPE=BOTH;
+   ALTER PLUGGABLE DATABASE ORCLPDB1 SAVE STATE
+Completed:    ALTER PLUGGABLE DATABASE ORCLPDB1 SAVE STATE
+
+XDB initialized.
+2025-04-18T17:30:36.451306+00:00
+ORCLPDB1(3):Resize operation completed for file# 10, old size 327680K, new size 337920K
+2025-04-18T18:10:38.249763+00:00
+Resize operation completed for file# 3, old size 522240K, new size 532480K
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="dbstatus">Check Database Status</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ docker exec -it oracle19c /bin/bash
+
+$ ps -ef | grep -i oracle
+
+$ . oraenv  
+
+$ sqlplus / as sysdba
+
+sqlplus> SELECT instance_name, status FROM v$instance;
+
+INSTANCE_NAME	 STATUS
+---------------- ------------
+ORCLCDB 	     OPEN
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="testable">Create Test Table</h3>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ docker exec -it oracle19c /bin/bash
+
+$ sqlplus / as sysdba
+
+sqlplus> CREATE SEQUENCE t1_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NOCACHE
+    NOCYCLE;
+
+CREATE TABLE t1 (
+    id NUMBER DEFAULT t1_id_seq.NEXTVAL PRIMARY KEY,
+    date_column DATE,
+    status VARCHAR2(20)
+);
+
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-01-15', 'YYYY-MM-DD'), 'ACTIVE');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-02-20', 'YYYY-MM-DD'), 'INACTIVE');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-03-10', 'YYYY-MM-DD'), 'ACTIVE');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-04-05', 'YYYY-MM-DD'), 'PENDING');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-05-12', 'YYYY-MM-DD'), 'ACTIVE');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-06-18', 'YYYY-MM-DD'), 'DELETED');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-07-22', 'YYYY-MM-DD'), 'ACTIVE');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-08-30', 'YYYY-MM-DD'), 'INACTIVE');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-09-14', 'YYYY-MM-DD'), 'PENDING');
+INSERT INTO t1 (date_column, status) VALUES (TO_DATE('2024-10-25', 'YYYY-MM-DD'), 'ACTIVE');
+
+sqlplus> COMMIT;
+                                </code></pre>
+                        </div>
+				    </div>
+                <h3 id="restartcontainer">Restart Docker Container</h3>
+                    <p>To make sure after restart all data in place.</p>
+				    <div class="specs-container">
+                        <div class="code-block">
+                            <span class="code-language"></span>
+                                <pre><code>
+>>> admin
+
+$ docker container restart oracle19c
+
+$ docker ps -a
+
+CONTAINER ID   IMAGE                       COMMAND                  CREATED             STATUS                            PORTS                                         NAMES
+69c7b327a3fb   oracle/database:19.3.0-ee   "/bin/bash -c 'exec …"   About an hour ago   Up 8 seconds (health: starting)   0.0.0.0:1521->1521/tcp, [::]:1521->1521/tcp   oracle19c
+
+$ docker exec -it oracle19c /bin/bash
+
+$ sqlplus / as sysdba
+
+SQL> select instance_name, to_char(startup_time,'mm/dd/yyyy hh24:mi:ss') as startup_time from v$instance;
+
+SQL> select * from t1;
+
+	ID DATE_COLU STATUS
+---------- --------- --------------------
+	11 15-JAN-24 ACTIVE
+	12 20-FEB-24 INACTIVE
+	13 10-MAR-24 ACTIVE
+	14 05-APR-24 PENDING
+	15 12-MAY-24 ACTIVE
+	16 18-JUN-24 DELETED
+	17 22-JUL-24 ACTIVE
+	18 30-AUG-24 INACTIVE
+	19 14-SEP-24 PENDING
+	20 25-OCT-24 ACTIVE
+
+10 rows selected.
+                                </code></pre>
+                        </div>
+				    </div>
+			</section>
+
+			<section id="oemcheck" class="post-section">
+				<h2>Check Access to OEM Express</h2>
+                <p>The Oracle Database inside the container also has Oracle Enterprise Manager Express configured. To access OEM Express, start your browser and follow the URL:</p>
+                <ul>
+                    <li><p><b>URL:</b> https://localhost:5500/em/</p></li>
+                    <li><p><b>Login:</b> system</p></li>
+                    <li><p><b>Password:</b> password</p></li>
+                    <li><p><b>Container name:</b> ORCLPDB1</p></li>
+                </ul>
+			</section>
+
+			<section id="usefulcmd" class="post-section">
+				<h2>Useful Docker commands</h2>
+                <p>Get list of containers:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ docker ps -a
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Get list of images:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ docker images
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Run container:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ docker run oracle19c
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Work with container:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ docker stop/start/restart oracle19c
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Container logs:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ docker logs -f oracle19
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Loging into container:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ docker exec -it oracle19c /bin/bash
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+            <div class="back-to-top">
+                <a href="#top">↑ Back to Top</a>
+            </div>
+        </article>
+    </main>
+
+    <footer class="disclaimer">
+        <hr />
+        <p>
+            DISCLAIMER:<br>
+            The information presented here is intended for informational purposes only. The author assumes no responsibility or liability for any damages resulting from the application of the techniques described herein. Use this content at your own risk.<br>
+            Always create backups and test configurations thoroughly before implementing them in live environments.
+        </p>
+    </footer>
+</body>
+</html>
