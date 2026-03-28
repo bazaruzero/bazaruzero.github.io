@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBA Notes - Oracle Out of Place patching</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <h1><a href="../../index.html">DBA Notes</a></h1>
+        <a href="https://github.com/bazaruzero" class="github-link" target="_blank" 
+           rel="noopener noreferrer" aria-label="GitHub profile">
+            <svg width="32" height="32" viewBox="0 0 98 96" fill="currentColor">
+                <title>GitHub Logo</title>
+                <path d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"/>
+            </svg>
+        </a>
+    </header>
+
+    <nav class="categories" aria-label="Blog categories">
+        <a href="../../categories/postgresql.html">PostgreSQL</a>
+        <a href="../../categories/oracle.html">Oracle</a>
+        <a href="../../categories/tools.html">Tools</a>
+        <a href="../../categories/theory_and_experiments.html">T&E</a>
+        <a href="../../categories/misc.html">Misc</a>
+        <a href="../../categories/bookmarks.html">Bookmarks</a>
+    </nav>
+
+    <main class="main-content">
+        <div class="archive-warning">
+            <strong>ARCHIVED CONTENT</strong> The information in this post may no longer be accurate. Always refer to the latest official documentation for current best practices and features.
+        </div>
+        <article class="blog-post">
+            <h1 class="post-title">Oracle Out of Place patching</h1>         
+
+            <nav class="table-of-contents">
+                <h2>Table of Contents</h2>
+                <ul>
+                    <li><a href="#docs">Docs</a></li>
+                    <li><a href="#useful">Useful Commands</a></li>
+                    <li><a href="#cloneorclhome">Clone your current Oracle Home</a></li>
+                    <li><a href="#patchneworclhome">Patch New (cloned) Oracle Home</a></li>
+                    <li><a href="#stoporcl">Stop Oracle services (database, listener, etc) running from Old Oracle Home</a></li>
+                    <li><a href="#envupdate">Update your environment files (if any) and "/etc/oratab"</a></li>
+                    <li><a href="#startorcl">Start Oracle Database (do not start listener) from New Oracle Home</a></li>
+                    <li><a href="#poststeps">Perform database post-patching steps (if required according to patch README file)</a></li>
+                    <li><a href="#healthcheck">Healthcheck and Oracle Listener start</a></li>
+                    <li><a href="#patcholdorclhome">Patch Old Oracle Home to same patch level</a></li>
+                </ul>
+            </nav>
+
+			<section id="docs" class="post-section">
+				<h2>Docs</h2>
+				<div class="specs-section">
+					<ul class="specs-list">
+                        <li>How to Perform out of Place Patching to Minimize DB Downtime (Doc ID 1389364.1)</li>
+                        <li>A Technique To Minimize Database Downtime When Patching (Doc ID 1390066.1)</li>
+                        <li><a href="https://unknowndba.blogspot.com/2019/09/out-of-place-rolling-patching-aka.html">RAC Example by unknowndba</a></li>
+                        <li><a href="https://mikedietrichde.com/2020/01/23/do-you-need-startup-upgrade-for-ojvm/">About OJVM STARTUP UPGRADE requirements</a></li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="useful" class="post-section">
+				<h2>Useful Commands</h2>
+                <p>List of installed patches:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ opatch lspatches
+$ opatch lsinventory | grep -i <patch_number_or_name>
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Check for possible conflicts:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ cd patch_directory
+$ opatch prereq CheckConflictAgainstOHWithDetail -ph ./
+                                </code></pre>
+                            </div>
+				</div>
+                <p>SQL query from DB registry to get list of installed patches:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+SQL> set lines 222 pages 999;
+col COMMENTS format a60;
+col ACTION format a11;
+col VERSION format a15;
+col NAMESPACE format a10;
+col BUNDLE_SERIES format a10;
+col ACTION_TIME format a35;
+select * from registry$history
+order by ACTION_TIME;
+                                </code></pre>
+                            </div>
+				</div>
+                <p>Get errors/failers from patch log:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ egrep -i "error|fail|ora-|ac-|rc-" /u01/app/oracle/product/19.0.0/dbhome_1/cfgtoollogs/opatch/patchXXX.log
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="cloneorclhome" class="post-section">
+				<h2>Clone your current Oracle Home</h2>
+<div class="specs-container">
+    <div class="code-block">
+        <span class="code-language"></span>
+        <pre><code>
+>>> oracle
+ 
+$ cp -rp /u01/app/oracle/product/19.0.0/dbhome_1 /u01/app/oracle/product/19.0.0/dbhome_2
+ 
+$ cd /u01/app/oracle/product/19.0.0/dbhome_2
+ 
+$ ./runInstaller -ignorePrereq -waitforcompletion -silent \
+-responseFile /u01/app/oracle/product/19.0.0/dbhome_2/install/response/db_install.rsp \
+oracle.install.option=INSTALL_DB_SWONLY \
+ORACLE_HOSTNAME=${ORACLE_HOSTNAME} \
+UNIX_GROUP_NAME=oinstall \
+INVENTORY_LOCATION=/u01/app/oraInventory \
+SELECTED_LANGUAGES=en,en_GB \
+ORACLE_HOME=/u01/app/oracle/product/19.0.0/dbhome_2 \
+ORACLE_BASE=/u01/app/oracle \
+oracle.install.db.InstallEdition=EE \
+oracle.install.db.OSDBA_GROUP=dba \
+oracle.install.db.OSBACKUPDBA_GROUP=dba \
+oracle.install.db.OSDGDBA_GROUP=dba \
+oracle.install.db.OSKMDBA_GROUP=dba \
+oracle.install.db.OSRACDBA_GROUP=dba \
+SECURITY_UPDATES_VIA_MYORACLESUPPORT=false \
+DECLINE_SECURITY_UPDATES=true
+ 
+>>> root
+ 
+$ /u01/app/oracle/product/19.0.0/dbhome_2/root.sh
+ 
+$ cat /u01/app/oraInventory/ContentsXML/inventory.xml
+++++++++++
+&lt;?xml version="1.0" standalone="yes" ?&gt;
+&lt;!-- Copyright (c) 1999, 2020, Oracle and/or its affiliates.
+All rights reserved. --&gt;
+&lt;!-- Do not modify the contents of this file by hand. --&gt;
+&lt;INVENTORY&gt;
+&lt;VERSION_INFO&gt;
+   &lt;SAVED_WITH&gt;12.2.0.7.0&lt;/SAVED_WITH&gt;
+   &lt;MINIMUM_VER&gt;2.1.0.6.0&lt;/MINIMUM_VER&gt;
+&lt;/VERSION_INFO&gt;
+&lt;HOME_LIST&gt;
+&lt;HOME NAME="OraDB19Home1" LOC="/u01/app/oracle/product/19.0.0/dbhome_1" TYPE="O" IDX="1"/&gt;
+&lt;HOME NAME="OraDB19Home2" LOC="/u01/app/oracle/product/19.0.0/dbhome_2" TYPE="O" IDX="2"/&gt;
+&lt;/HOME_LIST&gt;
+&lt;COMPOSITEHOME_LIST&gt;
+&lt;/COMPOSITEHOME_LIST&gt;
+&lt;/INVENTORY&gt;
+++++++++++
+</code></pre>
+    </div>
+</div>
+
+			<section id="patchneworclhome" class="post-section">
+				<h2>Patch New (cloned) Oracle Home</h2>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+>>> oracle
+ 
+$ cat .bash_profile
+++++++++++
+# .bash_profile
+# Get the aliases and functions
+if [ -f ~/.bashrc ]; then
+        . ~/.bashrc
+fi
+ 
+home1() {
+# User specific environment and startup programs
+export ORACLE_SID=ORCL
+export ORACLE_BASE=/u01/app/oracle
+export ORACLE_HOME=$ORACLE_BASE/product/19.0.0/dbhome_1
+export ORACLE_HOSTNAME=srv-example-db.oracle.com
+export TMP=/tmp
+export TMPDIR=$TMP
+export PATH=/usr/sbin:$PATH
+export PATH=$ORACLE_HOME/bin:$ORACLE_HOME/OPatch:/usr/sbin:$PATH
+export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+export CLASSPATH=$ORACLE_HOME/jlib:$ORACLE_HOME/rdbms/jlib
+export PS1='\[\033[0;32m\]$ORACLE_SID> \[\033[0;33m\]\u@\h\[\033[00m\] [\t] \w]\$ '
+##
+## Tools
+##
+alias rman="rlwrap ${ORACLE_HOME}/bin/rman"
+alias sp="rlwrap ${ORACLE_HOME}/bin/sqlplus / as sysdba"
+}
+ 
+home2() {
+# User specific environment and startup programs
+export ORACLE_SID=ORCL
+export ORACLE_BASE=/u01/app/oracle
+export ORACLE_HOME=$ORACLE_BASE/product/19.0.0/dbhome_2
+export ORACLE_HOSTNAME=srv-example-db.oracle.com
+export TMP=/tmp
+export TMPDIR=$TMP
+export PATH=/usr/sbin:$PATH
+export PATH=$ORACLE_HOME/bin:$ORACLE_HOME/OPatch:/usr/sbin:$PATH
+export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+export CLASSPATH=$ORACLE_HOME/jlib:$ORACLE_HOME/rdbms/jlib
+export PS1='\[\033[0;32m\]$ORACLE_SID> \[\033[0;33m\]\u@\h\[\033[00m\] [\t] \w]\$ '
+##
+## Tools
+##
+alias rman="rlwrap ${ORACLE_HOME}/bin/rman"
+alias sp="rlwrap ${ORACLE_HOME}/bin/sqlplus / as sysdba"
+}
+++++++++++
+ 
+$ home2
+$ opatch lspatches
++++++
+29585399;OCW RELEASE UPDATE 19.3.0.0.0 (29585399)
+29517242;Database Release Update : 19.3.0.0.190416 (29517242)
+ 
+OPatch succeeded.
++++++
+ 
+*** Upgrade OPatch ***
+ 
+$ opatch version
++++++
+OPatch Version: 12.2.0.1.17
+ 
+OPatch succeeded.
++++++
+ 
+$ mv $ORACLE_HOME/OPatch $ORACLE_HOME/OPatch_bkp_`date +%F`
+$ unzip /u01/soft/p6880880_190000_Linux-x86-64.zip -d $ORACLE_HOME/
+$ ls -ld $ORACLE_HOME/OPatch*
+$ opatch version
++++++
+OPatch Version: 12.2.0.1.19
+ 
+OPatch succeeded.
++++++
+ 
+*** Patch 30557433: DATABASE RELEASE UPDATE 19.6.0.0.0 ***
+ 
+$ {
+cd /u01/soft
+unzip p30557433_190000_Linux-x86-64.zip
+cd 30557433
+}
+ 
+$ opatch prereq CheckConflictAgainstOHWithDetail -ph ./
++++++
+Oracle Interim Patch Installer version 12.2.0.1.19
+Copyright (c) 2020, Oracle Corporation.  All rights reserved.
+ 
+PREREQ session
+ 
+Oracle Home       : /u01/app/oracle/product/19.0.0/dbhome_2
+Central Inventory : /u01/app/oraInventory
+   from           : /u01/app/oracle/product/19.0.0/dbhome_2/oraInst.loc
+OPatch version    : 12.2.0.1.19
+OUI version       : 12.2.0.7.0
+Log file location : /u01/app/oracle/product/19.0.0/dbhome_2/cfgtoollogs/opatch/opatch.log
+ 
+Invoking prereq "checkconflictagainstohwithdetail"
+ 
+Prereq "checkConflictAgainstOHWithDetail" passed.
+ 
+OPatch succeeded.
++++++
+ 
+$ opatch apply
++++++
+Patch 30557433 successfully applied.
+Sub-set patch [29517242] has become inactive due to the application of a super-set patch [30557433].
+Please refer to Doc ID 2161861.1 for any possible further required actions.
+Log file location: /u01/app/oracle/product/19.0.0/dbhome_2/cfgtoollogs/opatch/opatch.log
+ 
+OPatch succeeded.
++++++
+ 
+$ egrep -i "error|fail|ora-|ac-|rc-" /u01/app/oracle/product/19.0.0/dbhome_2/cfgtoollogs/opatch/opatch.log
+ 
+*** Patch 30484981: OJVM RELEASE UPDATE 19.6.0.0.0 ***
+ 
+$ {
+cd /u01/soft
+unzip p30484981_190000_Linux-x86-64.zip
+cd 30484981
+}
+ 
+$ opatch prereq CheckConflictAgainstOHWithDetail -ph ./
++++++
+Oracle Interim Patch Installer version 12.2.0.1.19
+Copyright (c) 2020, Oracle Corporation.  All rights reserved.
+ 
+PREREQ session
+ 
+Oracle Home       : /u01/app/oracle/product/19.0.0/dbhome_2
+Central Inventory : /u01/app/oraInventory
+   from           : /u01/app/oracle/product/19.0.0/dbhome_2/oraInst.loc
+OPatch version    : 12.2.0.1.19
+OUI version       : 12.2.0.7.0
+Log file location : /u01/app/oracle/product/19.0.0/dbhome_2/cfgtoollogs/opatch/opatch.log
+ 
+Invoking prereq "checkconflictagainstohwithdetail"
+ 
+Prereq "checkConflictAgainstOHWithDetail" passed.
+ 
+OPatch succeeded.
++++++
+ 
+$ opatch apply
++++++
+Patch 30484981 successfully applied.
+Log file location: /u01/app/oracle/product/19.0.0/dbhome_2/cfgtoollogs/opatch/opatch.log
+ 
+OPatch succeeded.
++++++
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="stoporcl" class="post-section">
+				<h2>Stop Oracle services (database, listener, etc) running from Old Oracle Home</h2>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+>>> oracle
+ 
+$ home1
+ 
+$ lsnrctl stop LISTENER
+ 
+$ sqlplus / as sysdba
+ 
+SQL> alter system checkpoint;
+ 
+SQL> shu immediate;
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="envupdate" class="post-section">
+				<h2>Update your environment files (if any) and "/etc/oratab"</h2>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+>>> oracle
+ 
+$ cat /etc/oratab | grep -i orcl
++++++
+##ORCL:/u01/app/oracle/product/19.0.0/dbhome_1:N
+ORCL:/u01/app/oracle/product/19.0.0/dbhome_2:N
++++++
+ 
+$ vi ~/.bash_profile
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="startorcl" class="post-section">
+				<h2>Start Oracle Database (do not start listener) from New Oracle Home</h2>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+>>> oracle
+ 
+$ home2
+ 
+$ sqlplus / as sysdba
+ 
+SQL> startup;
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="poststeps" class="post-section">
+				<h2>Perform database post-patching steps</h2>
+                <p><b>NOTE:</b> only if required according to patch README file.</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+$ sqlplus / as sysdba
+ 
+SQL> set lines 222 pages 999;
+col COMMENTS format a60;
+col ACTION format a11;
+col VERSION format a15;
+col NAMESPACE format a10;
+col BUNDLE_SERIES format a10;
+col ACTION_TIME format a35;
+select * from registry$history
+order by ACTION_TIME;
+++++++++++
+ACTION_TIME                         ACTION      NAMESPACE  VERSION                 ID COMMENTS                                                     BUNDLE_SER
+----------------------------------- ----------- ---------- --------------- ---------- ------------------------------------------------------------ ----------
+05-JAN-21 09.35.10.332371 AM        RU_APPLY    SERVER     19.0.0.0.0                 Patch applied on 19.3.0.0.0: Release_Update - 190410122720
+                                    BOOTSTRAP   DATAPATCH  19                         RDBMS_19.3.0.0.0DBRU_LINUX.X64_190417
+ 
+++++++++++
+ 
+$ cd $ORACLE_HOME/OPatch
+$ ./datapatch -verbose
+$ sqlplus / as sysdba
+ 
+SQL> set lines 222 pages 999;
+col COMMENTS format a75;
+col ACTION format a11;
+col VERSION format a22;
+col NAMESPACE format a10;
+col BUNDLE_SERIES format a5;
+col ACTION_TIME format a35;
+select * from registry$history
+order by ACTION_TIME;
+++++++++++
+ACTION_TIME                         ACTION      NAMESPACE  VERSION                        ID COMMENTS                                                                    BUNDL
+----------------------------------- ----------- ---------- ---------------------- ---------- --------------------------------------------------------------------------- -----
+05-JAN-21 09.35.10.332371 AM        RU_APPLY    SERVER     19.0.0.0.0                        Patch applied on 19.3.0.0.0: Release_Update - 190410122720
+05-JAN-21 09.31.04.535922 AM        jvmpsu.sql  SERVER     19.6.0.0.200114OJVMRU           0 RAN jvmpsu.sql
+05-JAN-21 09.31.04.578736 AM        APPLY       SERVER     19.6.0.0.200114OJVMRU           0 OJVM RU post-install
+05-JAN-21 09.35.53.850255 AM        RU_APPLY    SERVER     19.0.0.0.0                        Patch applied from 19.3.0.0.0 to 19.6.0.0.0: Release_Update - 191217155004
+                                    BOOTSTRAP   DATAPATCH  19                                RDBMS_19.6.0.0.0DBRU_LINUX.X64_191217
+++++++++++
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="healthcheck" class="post-section">
+				<h2>Healthcheck and Oracle Listener start</h2>
+                <p>Check database alert log file for any errors and start listener:</p>
+				<div class="specs-container">
+                            <div class="code-block">
+                                <span class="code-language"></span>
+                                <pre><code>
+>>> oracle
+ 
+$ lsnrclt start LISTENER
+                                </code></pre>
+                            </div>
+				</div>
+			</section>
+
+			<section id="patcholdorclhome" class="post-section">
+				<h2>Patch Old Oracle Home to same patch level</h2>
+				<p>Same patching steps.</p>
+			</section>
+
+            <div class="back-to-top">
+                <a href="#top">↑ Back to Top</a>
+            </div>
+        </article>
+    </main>
+
+    <footer class="disclaimer">
+        <hr />
+        <p>
+            DISCLAIMER:<br>
+            The information presented here is intended for informational purposes only. The author assumes no responsibility or liability for any damages resulting from the application of the techniques described herein. Use this content at your own risk.<br>
+            Always create backups and test configurations thoroughly before implementing them in live environments.
+        </p>
+    </footer>
+</body>
+</html>
