@@ -58,6 +58,40 @@
 
                 <div class="week-item">
                     <div class="week-header collapsed" onclick="toggleWeek(this)">
+                        23.03.26 - 29.03.26
+                    </div>
+                    <div class="week-content collapsed">
+                        <ul class="reading-list">
+                            <li>
+                                <a href="https://habr.com/ru/companies/avito/articles/1009204/">Отсечь змейке хвост: останавливаем разнос базы данных, когда времени на это нет</a>
+                                <div class="article-description">
+                                    About partitioning and how the problem of freeing up disk space was solved. Not very detailed, but it might be useful, for example, when migrating a standalone table to a partitioned one (the approach itself).
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/companies/otus/articles/1012266/">Почему VACUUM не спасает от раздувания индексов в PostgreSQL</a>
+                                <div class="article-description">
+                                    A lot of interesting material on how VACUUM works with indexes and why it doesn't reduce their size. It also describes the tools to use and their specifics, as well as in which real-world situations it makes sense to take action and when it does not.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/articles/444018/">Как одно изменение конфигурации PostgreSQL улучшило производительность медленных запросов в 50 раз</a>
+                                <div class="article-description">
+                                    How the <code>random_page_cost</code> parameter helped stabilize Postgres to choose an index scan plan instead of a sequential scan.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://use-the-index-luke.com/sql/anatomy/the-tree">The Search Tree (B-Tree) Makes the Index Fast</a>
+                                <div class="article-description">
+                                    A short, schematic overview of how a B-Tree index works internally and what the letter B stands for (it means balanced, NOT binary).
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="week-item">
+                    <div class="week-header collapsed" onclick="toggleWeek(this)">
                         16.03.26 - 22.03.26
                     </div>
                     <div class="week-content collapsed">
