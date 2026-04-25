@@ -58,6 +58,40 @@
 
                 <div class="week-item">
                     <div class="week-header collapsed" onclick="toggleWeek(this)">
+                        20.04.26 - 26.04.26
+                    </div>
+                    <div class="week-content collapsed">
+                        <ul class="reading-list">
+                            <li>
+                                <a href="https://habr.com/ru/companies/softpoint/articles/1016828/">Записки оптимизатора 1С (ч.16). Риски падения Postgres: потребление и высвобождение памяти процессами postgres</a>
+                                <div class="article-description">
+                                    The article describes a situation where inactive PostgreSQL processes were consuming memory, and how the author arrived at that conclusion. The author conducted an experiment to test their hypothesis across different database versions. The root cause of the observed behavior remains unclear - only the fact that the problem exists is certain. The author emphasizes the importance of having a good monitoring system, since without it, they wouldn't have been able to understand the situation and figure out that idle connections (which failed to release memory after completing their work) were responsible for the memory issues. In this case, the author used Perfexpert for monitoring. The article also includes many links to other useful resources about memory management in PostgreSQL and related topics.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/companies/vtb/articles/1011188/">Определение фактического профиля нагрузки в PostgreSQL и динамические состояния БД</a>
+                                <div class="article-description">
+                                    For "online" monitoring: DB Time (ASH) based on pg_stat_activity.
+                                </div>
+                                <div class="article-description">
+                                    For "completed" monitoring: DB Time (Committed) based on pg_stat_statements.
+                                </div>
+                            </li>
+                            <li>
+                                <a href="https://habr.com/ru/articles/890044/">Влияние удержания горизонта базы данных PostgreSQL на производительность по тесту pgbench</a>
+                                <div class="article-description">
+                                    The article examines how holding back the database horizon (vacuum cleanup horizon) degrades performance — for example, reducing TPS in benchmark tests. It also provides a query for monitoring the database horizon, along with parameters that can be used to protect against long-running transactions and queries.
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                
+
+                
+                <div class="week-item">
+                    <div class="week-header collapsed" onclick="toggleWeek(this)">
                         06.04.26 - 12.04.26
                     </div>
                     <div class="week-content collapsed">
