@@ -615,17 +615,137 @@ Note: variables above could vary.</code></pre>
                 </div>
 
                 <h3 id="pgbench">PgBench</h3>
-                <p> Init example with DB size ~ 102 GB:</p>
+                <p>Docs:</p>
+					<ul class="specs-list">
+                        <li><a href="https://postgrespro.ru/docs/postgresql/current/pgbench">pgbench docs (ru)</a></li>
+                        <li><a href="https://dev.to/yugabyte/pgbench-client-jobs-68g">Franck Pachot - pgbench --client --jobs</a></li>
+                        <li><a href="https://franckpachot.medium.com/do-you-know-what-you-are-measuring-with-pgbench-d8692a33e3d6">Franck Pachot - Do you know what you are measuring with pgbench?</a></li>
+					</ul>
+
+                <p>Prepare and Init database:</p>
                 <div class="code-block">
                     <span class="code-language">Bash</span>
-                    <pre><code>pgbench --initialize --scale=7000 --tablespace=bench_db_data --index-tablespace=bench_db_idx --user=bench_usr --host=${HOSTNAME} --port=5432 bench_db</code></pre>
+                    <pre><code>>>> Simple <<<
+
+pgbench --initialize --scale=70 --port=5415 test_db
+
+>>> Dedicated user/tablespaces example <<<
+
+psql> create user bench_usr with encrypted password '***';
+psql> \! mkdir -p /pgdata001/12/tbs/data_tbs		<<<<< Create same dir on Replica server!!!
+psql> \! mkdir -p /pgdata002/12/tbs/idx_tbs		<<<<< Create same dir on Replica server!!!
+psql> create tablespace data_tbs owner bench_usr location '/pgdata001/12/tbs/data_tbs';
+psql> create tablespace idx_tbs owner bench_usr location '/pgdata002/12/tbs/idx_tbs';
+psql> create database bench_db with owner=bench_usr tablespace=data_tbs;
+psql> \c bench_db	<<<<< Create extension if you want (pg_buffercache, pg_stat_statements, pg_stat_kcache, etc ...)
+
+pgbench --initialize --scale=50 --tablespace=data_tbs --index-tablespace=idx_tbs --user=bench_usr --host=${HOSTNAME} --port=5432 bench_db</code></pre>
                 </div>
 
-                <p> Start load:</p>
+                <p>Start Load:</p>
                 <div class="code-block">
                     <span class="code-language">Bash</span>
-                    <pre><code>TODOTODOTODO</code></pre>
+                    <pre><code>>>> Default <<<
+
+pgbench -h /tmp -p 5415 -c 10 -j 6 -P 5 -T 900 postgres
+pgbench -h $HOSTNAME -p 5432 -U bench_usr -c 50 -j 2 -P 60 -T 300 bench_db
+
+>>> No Vacuum <<<
+
+pgbench -h /tmp -p 5415 -c 10 -j 6 -P 5 -T 900 --no-vacuum postgres
+pgbench -h $HOSTNAME -p 5432 -U bench_usr -c 50 -j 2 -P 60 -T 300 --no-vacuum bench_db
+
+>>> Select Only <<<
+
+pgbench -h /tmp -p 5415 -c 10 -j 6 -P 5 -T 900 --no-vacuum -b select-only postgres
+pgbench -h $HOSTNAME -p 5432 -U bench_usr -c 50 -j 2 -P 60 -T 300 --no-vacuum -b select-only bench_db
+
+>>> Simple-Update (no blocking sessions) <<<
+
+pgbench -h /tmp -p 5415 -c 10 -j 6 -P 5 -T 900 --no-vacuum -b simple-update postgres
+pgbench -h $HOSTNAME -p 5432 -U bench_usr -c 50 -j 2 -P 60 -T 300 --no-vacuum -b simple-update bench_db
+
+>>> Custom script example with logging into a file <<<
+
+echo "select count(*) from pgbench_accounts;" > custom.sql
+pgbench -h /tmp -p 5415 -c 10 -j 6 -P 5 -T 900 --no-vacuum -f custom.sql postgres 2>&1 | while IFS= read -r line; do echo "$(date '+%Y-%m-%d %H:%M:%S'): $line"; done | tee -a pgbench_custom.log
+
+>>> Prepared to avoid planning each query overhead <<<
+
+pgbench -h /tmp -p 5415 -c 10 -j 6 -P 5 -T 900 --no-vacuum -b simple-update -M prepared postgres</code></pre>
                 </div>
+                <details>
+                    <summary>pgbench -V && pgbench --help</summary>
+                    <pre><code>pgbench (PostgreSQL) 15.14
+pgbench is a benchmarking tool for PostgreSQL.
+
+Usage:
+  pgbench [OPTION]... [DBNAME]
+
+Initialization options:
+  -i, --initialize         invokes initialization mode
+  -I, --init-steps=[dtgGvpf]+ (default "dtgvp")
+                           run selected initialization steps
+  -F, --fillfactor=NUM     set fill factor
+  -n, --no-vacuum          do not run VACUUM during initialization
+  -q, --quiet              quiet logging (one message each 5 seconds)
+  -s, --scale=NUM          scaling factor
+  --foreign-keys           create foreign key constraints between tables
+  --index-tablespace=TABLESPACE
+                           create indexes in the specified tablespace
+  --partition-method=(range|hash)
+                           partition pgbench_accounts with this method (default: range)
+  --partitions=NUM         partition pgbench_accounts into NUM parts (default: 0)
+  --tablespace=TABLESPACE  create tables in the specified tablespace
+  --unlogged-tables        create tables as unlogged tables
+
+Options to select what to run:
+  -b, --builtin=NAME[@W]   add builtin script NAME weighted at W (default: 1)
+                           (use "-b list" to list available scripts)
+  -f, --file=FILENAME[@W]  add script FILENAME weighted at W (default: 1)
+  -N, --skip-some-updates  skip updates of pgbench_tellers and pgbench_branches
+                           (same as "-b simple-update")
+  -S, --select-only        perform SELECT-only transactions
+                           (same as "-b select-only")
+
+Benchmarking options:
+  -c, --client=NUM         number of concurrent database clients (default: 1)
+  -C, --connect            establish new connection for each transaction
+  -D, --define=VARNAME=VALUE
+                           define variable for use by custom script
+  -j, --jobs=NUM           number of threads (default: 1)
+  -l, --log                write transaction times to log file
+  -L, --latency-limit=NUM  count transactions lasting more than NUM ms as late
+  -M, --protocol=simple|extended|prepared
+                           protocol for submitting queries (default: simple)
+  -n, --no-vacuum          do not run VACUUM before tests
+  -P, --progress=NUM       show thread progress report every NUM seconds
+  -r, --report-per-command report latencies, failures, and retries per command
+  -R, --rate=NUM           target rate in transactions per second
+  -s, --scale=NUM          report this scale factor in output
+  -t, --transactions=NUM   number of transactions each client runs (default: 10)
+  -T, --time=NUM           duration of benchmark test in seconds
+  -v, --vacuum-all         vacuum all four standard tables before tests
+  --aggregate-interval=NUM aggregate data over NUM seconds
+  --failures-detailed      report the failures grouped by basic types
+  --log-prefix=PREFIX      prefix for transaction time log file
+                           (default: "pgbench_log")
+  --max-tries=NUM          max number of tries to run transaction (default: 1)
+  --progress-timestamp     use Unix epoch timestamps for progress
+  --random-seed=SEED       set random seed ("time", "rand", integer)
+  --sampling-rate=NUM      fraction of transactions to log (e.g., 0.01 for 1%)
+  --show-script=NAME       show builtin script code, then exit
+  --verbose-errors         print messages of all errors
+
+Common options:
+  -d, --debug              print debugging output
+  -h, --host=HOSTNAME      database server host or socket directory
+  -p, --port=PORT          database server port number
+  -U, --username=USERNAME  connect as specified database user
+  -V, --version            output version information, then exit
+  -?, --help               show this help, then exit</code></pre></details>
+
+
 
                 <h3 id="pg-waldump">pg_waldump</h3>
                 <p>Stat between two WAL files:</p>
